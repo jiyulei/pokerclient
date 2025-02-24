@@ -8,12 +8,12 @@ import http from "http";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { PubSub } from "graphql-subscriptions";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 const pubsub = new PubSub();
 
-// A schema is a collection of type definitions (hence "typeDefs")
-// that together define the "shape" of queries that are executed against
-// your data.
 const typeDefs = `#graphql
   type Book {
     title: String
@@ -33,22 +33,19 @@ const typeDefs = `#graphql
   }
 `;
 
-const books = [
-  {
-    title: "The Awakening",
-    author: "Kate Chopin",
-  },
-  {
-    title: "City of Glass",
-    author: "Paul Auster",
-  },
-];
-
-// Resolvers define how to fetch the types defined in your schema.
-// This resolver retrieves books from the "books" array above.
+// Todo: romove console.log
 const resolvers = {
   Query: {
-    books: () => books,
+    books: async () => {
+      try {
+        const books = await prisma.book.findMany();
+        console.log("🟢 查询到的 books:", books);
+        return books;
+      } catch (error) {
+        console.error("❌ Prisma 查询失败:", error);
+        throw new Error("数据库查询失败");
+      }
+    },
   },
   Subscription: {
     bookAdded: {
@@ -56,11 +53,18 @@ const resolvers = {
     },
   },
   Mutation: {
-    addBook: (_, { title, author }) => {
-      const book = { title, author };
-      books.push(book);
-      pubsub.publish("BOOK_ADDED", { bookAdded: book });
-      return book;
+    addBook: async (_, { title, author }) => {
+      try {
+        const book = await prisma.book.create({
+          data: { title, author },
+        });
+        pubsub.publish("BOOK_ADDED", { bookAdded: book });
+        console.log("🟢 新增书籍:", book);
+        return book;
+      } catch (error) {
+        console.error("❌ Prisma 插入失败:", error);
+        throw new Error("插入失败");
+      }
     },
   },
 };
