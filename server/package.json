@@ -11,11 +11,15 @@
   "type": "module",
   "dependencies": {
     "@apollo/server": "^4.11.3",
+    "@graphql-tools/schema": "^10.0.19",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "graphql": "^16.10.0",
-    "graphql-tag": "^2.12.6"
+    "graphql-subscriptions": "^3.0.0",
+    "graphql-tag": "^2.12.6",
+    "graphql-ws": "^6.0.4",
+    "ws": "^8.18.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

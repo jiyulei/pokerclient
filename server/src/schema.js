@@ -1,6 +1,6 @@
-import { gql } from "graphql-tag";
+const { gql } = require("graphql-tag");
 
-export const typeDefs = gql`
+const typeDefs = gql`
   type Query {
     hello: String
   }
