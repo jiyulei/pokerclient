@@ -12,6 +12,7 @@
   "dependencies": {
     "@apollo/server": "^4.11.3",
     "@graphql-tools/schema": "^10.0.19",
+    "@prisma/client": "^6.4.1",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
@@ -22,6 +23,7 @@
     "ws": "^8.18.1"
   },
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "prisma": "^6.4.1"
   }
 }
