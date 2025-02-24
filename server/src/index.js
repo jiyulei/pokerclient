@@ -84,6 +84,7 @@ const wsServer = new WebSocketServer({
 
 const serverCleanup = useServer({ schema }, wsServer);
 
+// Todo: add context for prisma/用户认证    
 const server = new ApolloServer({
   schema,
   plugins: [
