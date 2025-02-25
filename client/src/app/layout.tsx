@@ -20,7 +20,9 @@ export default function RootLayout({
       >
         <ApolloProvider client={client}>
           <Navbar />
-          {children}
+          <div className="flex flex-col items-center justify-center"> 
+            {children}
+          </div>
         </ApolloProvider>
       </body>
     </html>
