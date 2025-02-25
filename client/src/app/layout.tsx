@@ -3,6 +3,10 @@
 import "./globals.css";
 import { ApolloProvider } from "@apollo/client";
 import client from "@/lib/apollo-client";
+import Navbar from "@/components/Navbar";
+import { Montserrat } from "next/font/google";
+
+const montserrat = Montserrat({ subsets: ["latin"] });
 
 export default function RootLayout({
   children,
@@ -11,8 +15,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh">
-      <body>
-        <ApolloProvider client={client}>{children}</ApolloProvider>
+      <body
+        className={`${montserrat.className} min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800`}
+      >
+        <ApolloProvider client={client}>
+          <Navbar />
+          {children}
+        </ApolloProvider>
       </body>
     </html>
   );

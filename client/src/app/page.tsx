@@ -1,35 +1,17 @@
-"use client";
-
-import { gql, useQuery } from "@apollo/client";
-
-const GET_BOOKS = gql`
-  query GetBooks {
-    books {
-      title
-      author
-    }
-  }
-`;
-
-export default function Home() {
-  const { loading, error, data } = useQuery(GET_BOOKS);
-
-  if (loading) return <div>加载中...</div>;
-  if (error) return <div>错误： {error.message}</div>;
-
+export default function HomePage() {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">图书列表</h1>
-      <div className="space-y-4">
-        {data.books.map(
-          (book: { title: string; author: string }, index: number) => (
-            <div key={index} className="border p-4 rounded-lg">
-              <h2 className="font-semibold">{book.title}</h2>
-              <p className="text-gray-600">作者：{book.author}</p>
-            </div>
-          )
-        )}
-      </div>
+    <div className="flex p-4 h-screen w-screen items-center justify-center bg-[#1a1b1e]">
+      <button
+        className="px-16 py-8 bg-[#25262b] rounded-xl text-white text-4xl font-bold
+        hover:bg-[#2c2d31] hover:scale-105 hover:shadow-2xl
+        transition-all duration-300 ease-in-out
+        font-['Montserrat']
+        tracking-wider
+        animate-pulse"
+        aria-label="播放"
+      >
+        Get Started
+      </button>
     </div>
   );
 }
