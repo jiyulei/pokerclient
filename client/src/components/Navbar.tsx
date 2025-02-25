@@ -33,20 +33,20 @@ export default function Navbar() {
               <div className="flex items-baseline space-x-4">
                 <Link
                   href="/"
-                  className="px-3 py-2 rounded-md text-sm hover:bg-gray-700"
+                  className="px-3 py-2 rounded-md text-lg hover:bg-gray-700"
                 >
                   Home
                 </Link>
                 <Link
                   href="/leaderboard"
-                  className="px-3 py-2 rounded-md text-sm hover:bg-gray-700"
+                  className="px-3 py-2 rounded-md text-lg hover:bg-gray-700"
                 >
                   Leaderboard
                 </Link>
                 {isLoggedIn && (
                   <Link
                     href="/mystats"
-                    className="px-3 py-2 rounded-md text-sm hover:bg-gray-700"
+                    className="px-3 py-2 rounded-md text-lg hover:bg-gray-700"
                   >
                     Mystats
                   </Link>
@@ -67,8 +67,8 @@ export default function Navbar() {
                 <span className="text-sm font-medium">{user.name}</span>
               </div>
             ) : (
-              <button className="px-4 py-2 text-sm font-medium text-white bg-gray-700 rounded-md hover:bg-gray-600 transition-colors">
-                登录
+              <button className="px-4 py-2 font-medium text-white bg-gray-700 rounded-md hover:bg-gray-600 transition-colors">
+                Login
               </button>
             )}
           </div>
