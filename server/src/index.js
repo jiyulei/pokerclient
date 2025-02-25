@@ -103,9 +103,10 @@ const server = new ApolloServer({
 
 server.start().then(() => {
   app.use("/graphql", expressMiddleware(server));
+  const PORT = process.env.PORT || 4000;
 
-  httpServer.listen(4000, () => {
-    console.log("🚀 Server ready at: http://localhost:4000");
-    console.log("🚀 Subscriptions ready at ws://localhost:4000/graphql");
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 Server ready at: http://localhost:${PORT}`);
+    console.log(`🚀 Subscriptions ready at ws://localhost:${PORT}/graphql`);
   });
 });

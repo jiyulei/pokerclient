@@ -8,9 +8,9 @@ export default function HomePage() {
         font-['Montserrat']
         tracking-wider
         animate-pulse"
-        aria-label="播放"
+        aria-label="start game"
       >
-        PLAY
+        Get Started
       </button>
     </div>
   );
