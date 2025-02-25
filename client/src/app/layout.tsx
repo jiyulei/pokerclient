@@ -16,15 +16,13 @@ export default function RootLayout({
   return (
     <html lang="zh">
       <body
-        className={`${montserrat.className} min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800`}
+        className={`${montserrat.className} min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-800 flex flex-col`}
       >
         <ApolloProvider client={client}>
           <Navbar />
-          <div className="flex flex-col items-center justify-center"> 
-            {children}
-          </div>
+          <main>{children}</main>
         </ApolloProvider>
       </body>
-    </html>
+    </html> 
   );
 }
