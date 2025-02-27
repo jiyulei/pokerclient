@@ -1,6 +1,8 @@
 export default class Player {
-  constructor(name, initialChips) {
+  constructor(id, name, initialChips) {
+    this.id = id;
     this.name = name;
+    // TODO: check if player is guest
     this.chips = initialChips; // initial chips set by game
     this.cards = [];
     this.isActive = true;

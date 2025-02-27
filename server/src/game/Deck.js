@@ -38,7 +38,7 @@ export default class Deck {
     }
   }
 
-  deal() {
+  drawCard() {
     return this.cards.pop();
   }
 }
