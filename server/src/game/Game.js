@@ -42,8 +42,9 @@ export default class Game {
       playerMessages: {}, // messages for specific players
     };
 
-    this.mainPot = 0; // main pot   
+    this.mainPot = 0; // main pot
     this.sidePots = []; // side pots, each side pot contains amount and players
+    this.shownCards = new Set(); // 记录已经摊牌的玩家
   }
 
   determineWinner() {
@@ -128,6 +129,8 @@ export default class Game {
         throw new Error("Not enough players with sufficient chips to continue");
       }
     }
+
+    this.shownCards.clear(); // 清除摊牌记录
 
     this.round++;
     this.currentRound = "preflop";
@@ -280,6 +283,30 @@ export default class Game {
         : 0,
       mainPot: this.mainPot,
       sidePots: this.sidePots,
+      showdownInfo:
+        this.currentRound === "river"
+          ? this.inHandPlayers
+              .concat(
+                // add players who have folded but chose to show cards
+                this.players.filter(
+                  (p) => p.isFolded && this.shownCards.has(p.id)
+                )
+              )
+              .map((player) => ({
+                id: player.id,
+                name: player.name,
+                cards: player.cards,
+                position: player.position,
+                isFolded: player.isFolded,
+              }))
+          : null,
+      // whether the current player can choose to show cards
+      canShowCards:
+        playerId &&
+        this.currentRound === "river" &&
+        !this.shownCards.has(playerId) &&
+        this.findPlayerById(playerId).isFolded,
+      shownCards: Array.from(this.shownCards),
     };
   }
 
@@ -314,6 +341,29 @@ export default class Game {
 
   // end hand
   endHand() {
+    // if the game ends before the river (only one player who can continue)
+    if (this.inHandPlayers.length === 1) {
+      const winner = this.inHandPlayers[0];
+      this.addMessage(
+        `${winner.name} wins ${this.pot} chips (all other players folded)`
+      );
+      winner.chips += this.pot;
+
+      console.log(
+        "Winner:",
+        `${winner.id} ${winner.name} (won by all others folding)`
+      );
+
+      // check players status
+      this.checkPlayersStatus();
+      return;
+    }
+
+    // show cards after the river
+    this.inHandPlayers.forEach((player) => {
+      this.showCards(player.id, true); // force show cards
+    });
+
     const winners = this.determineWinner();
     this.distributeWinnings(winners);
 
@@ -322,7 +372,7 @@ export default class Game {
       winners.map((winner) => `${winner.id} ${winner.name} ${winner.descr}`)
     );
 
-    // check players status after each hand
+    // check players status
     this.checkPlayersStatus();
   }
 
@@ -539,10 +589,9 @@ export default class Game {
 
   // handle player action
   handlePlayerAction(playerId, action, amount = 0) {
-    // verify if it's the player's turn
     const player = this.findPlayerById(playerId);
-    if (player.position !== this.currentPlayer) {
-      throw new Error("Not your turn");
+    if (!player) {
+      throw new Error("Player not found");
     }
 
     try {
@@ -561,18 +610,23 @@ export default class Game {
           this.lastRaisePlayer = player.position;
           break;
         case "allin":
-          const allinAmount = player.chips; // all remaining chips
+          const allinAmount = player.chips;
           this.handleBet(playerId, allinAmount);
           if (allinAmount > this.currentRoundMaxBet) {
             this.lastRaisePlayer = player.position;
           }
           break;
+        case "showCards":
+          this.showCards(playerId);
+          break;
         default:
           throw new Error("Invalid action");
       }
 
-      // move to next player
-      this.moveToNextPlayer();
+      // 移动到下一个玩家（除了摊牌动作外）
+      if (action !== "showCards") {
+        this.moveToNextPlayer();
+      }
     } catch (error) {
       this.addMessage(error.message, playerId);
       throw error;
@@ -690,5 +744,24 @@ export default class Game {
         });
       }
     });
+  }
+
+  // show cards
+  showCards(playerId, isForced = false) {
+    const player = this.findPlayerById(playerId);
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // if player has folded and is not forced to show cards, can choose not to show cards
+    if (player.isFolded && !isForced) {
+      return;
+    }
+
+    // record that the player has shown cards
+    this.shownCards.add(playerId);
+
+    // broadcast player's cards
+    this.addMessage(`${player.name} shows ${player.cards.join(", ")}`);
   }
 }
