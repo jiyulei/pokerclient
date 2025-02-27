@@ -32,8 +32,8 @@ export default class Game {
     this.currentRoundMaxBet = 0; // current round max bet
     this.lastRaisePlayer = null; // last raise player
     this.activePlayerCount = 0; // current active players count
-    this.activePlayers = []; // current active players list
-    this.inHandPlayers = []; // players in hand (including all-in players)
+    this.activePlayers = []; // players who can continue except folded & all-in
+    this.inHandPlayers = []; // players who can continue and not folded
     this.actionTimeout = null; // for player action timeout
 
     // game notification system
@@ -44,7 +44,7 @@ export default class Game {
 
     this.mainPot = 0; // main pot
     this.sidePots = []; // side pots, each side pot contains amount and players
-    this.shownCards = new Set(); // 记录已经摊牌的玩家
+    this.shownCards = new Set(); // players who have shown cards
   }
 
   determineWinner() {
@@ -130,7 +130,7 @@ export default class Game {
       }
     }
 
-    this.shownCards.clear(); // 清除摊牌记录
+    this.shownCards.clear(); // clear shown cards record
 
     this.round++;
     this.currentRound = "preflop";
@@ -231,11 +231,13 @@ export default class Game {
         this.dealRiver();
         break;
       case "river":
-        this.showdown();
-        break;
+        this.endHand(); // directly call endHand
+        return;
     }
     // reset current round bets
     this.resetBets();
+    // start new betting round
+    this.startBettingRound();
   }
 
   // deal public cards
@@ -286,27 +288,23 @@ export default class Game {
       showdownInfo:
         this.currentRound === "river"
           ? this.inHandPlayers
-              .concat(
-                // add players who have folded but chose to show cards
-                this.players.filter(
-                  (p) => p.isFolded && this.shownCards.has(p.id)
-                )
-              )
+              .filter((player) => this.shownCards.has(player.id))
               .map((player) => ({
                 id: player.id,
                 name: player.name,
                 cards: player.cards,
                 position: player.position,
-                isFolded: player.isFolded,
               }))
           : null,
-      // whether the current player can choose to show cards
       canShowCards:
         playerId &&
-        this.currentRound === "river" &&
-        !this.shownCards.has(playerId) &&
-        this.findPlayerById(playerId).isFolded,
+        this.inHandPlayers.length === 1 &&
+        this.inHandPlayers[0].id === playerId &&
+        !this.shownCards.has(playerId),
       shownCards: Array.from(this.shownCards),
+      isYourTurn:
+        playerId &&
+        this.findPlayerById(playerId)?.position === this.currentPlayer,
     };
   }
 
@@ -341,7 +339,7 @@ export default class Game {
 
   // end hand
   endHand() {
-    // if the game ends before the river (only one player who can continue)
+    // if ended before river (only one player left)
     if (this.inHandPlayers.length === 1) {
       const winner = this.inHandPlayers[0];
       this.addMessage(
@@ -359,18 +357,26 @@ export default class Game {
       return;
     }
 
-    // show cards after the river
-    this.inHandPlayers.forEach((player) => {
+    // show cards after river
+    // sort players by position (starting from small blind)
+    const playersToShow = [...this.inHandPlayers].sort((a, b) => {
+      // calculate position relative to small blind
+      const posA =
+        (a.position - this.smallBlindPos + this.players.length) %
+        this.players.length;
+      const posB =
+        (b.position - this.smallBlindPos + this.players.length) %
+        this.players.length;
+      return posA - posB;
+    });
+
+    playersToShow.forEach((player) => {
       this.showCards(player.id, true); // force show cards
     });
 
-    const winners = this.determineWinner();
-    this.distributeWinnings(winners);
-
-    console.log(
-      "Winners:",
-      winners.map((winner) => `${winner.id} ${winner.name} ${winner.descr}`)
-    );
+    // calculate winners and distribute pots
+    this.calculatePots();
+    this.distributePots();
 
     // check players status
     this.checkPlayersStatus();
@@ -529,13 +535,25 @@ export default class Game {
     // reset current round bets
     this.resetBets();
 
-    // determine first player to act
+    // determine the first player to act
     if (this.currentRound === "preflop") {
-      // preflop starts from big blind position
+      // preflop starts from the player after big blind
       this.currentPlayer = (this.bigBlindPos + 1) % this.players.length;
+
+      // auto collect blinds
+      const sbPlayer = this.players[this.smallBlindPos];
+      const bbPlayer = this.players[this.bigBlindPos];
+
+      this.handleBet(sbPlayer.id, this.smallBlind);
+      this.handleBet(bbPlayer.id, this.bigBlind);
+
+      // set initial max bet amount
+      this.currentRoundMaxBet = this.bigBlind;
+      this.lastRaisePlayer = this.bigBlindPos;
     } else {
-      // other rounds start from dealer position
-      this.currentPlayer = (this.dealer + 1) % this.players.length;
+      // other rounds start from small blind
+      this.currentPlayer = this.smallBlindPos;
+      this.lastRaisePlayer = null;
     }
 
     this.waitForPlayerAction();
@@ -543,15 +561,21 @@ export default class Game {
 
   // wait for player action
   waitForPlayerAction() {
+    // if all players have acted and bet equal, go to next round
+    if (this.shouldEndRound()) {
+      this.nextRound();
+      return;
+    }
+
     const player = this.players[this.currentPlayer];
 
-    // if player has folded or is all in, move to next player
+    // if player has folded or all in, skip to next player
     if (!player.isActive || player.isFolded || player.isAllIn) {
       this.moveToNextPlayer();
       return;
     }
 
-    // add notification
+    // add message notification
     this.addMessage(`It's your turn`, player.id);
 
     // set action timeout
@@ -569,11 +593,10 @@ export default class Game {
       clearTimeout(this.actionTimeout);
     }
 
-    // find next active player
     do {
       this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
 
-      // if back to last raising player, this round ends
+      // if back to the last raising player, this round ends
       if (this.currentPlayer === this.lastRaisePlayer) {
         this.nextRound();
         return;
@@ -590,8 +613,8 @@ export default class Game {
   // handle player action
   handlePlayerAction(playerId, action, amount = 0) {
     const player = this.findPlayerById(playerId);
-    if (!player) {
-      throw new Error("Player not found");
+    if (player.position !== this.currentPlayer) {
+      throw new Error("Not your turn");
     }
 
     try {
@@ -605,7 +628,17 @@ export default class Game {
         case "call":
           this.handleBet(playerId, this.currentRoundMaxBet - player.currentBet);
           break;
+        case "bet":
+          if (this.currentRoundMaxBet > 0) {
+            throw new Error("Cannot bet when there are outstanding bets");
+          }
+          this.handleBet(playerId, amount);
+          this.lastRaisePlayer = player.position;
+          break;
         case "raise":
+          if (this.currentRoundMaxBet === 0) {
+            throw new Error("Cannot raise when there are no bets");
+          }
           this.handleBet(playerId, amount);
           this.lastRaisePlayer = player.position;
           break;
@@ -623,10 +656,8 @@ export default class Game {
           throw new Error("Invalid action");
       }
 
-      // 移动到下一个玩家（除了摊牌动作外）
-      if (action !== "showCards") {
-        this.moveToNextPlayer();
-      }
+      // move to next player
+      this.moveToNextPlayer();
     } catch (error) {
       this.addMessage(error.message, playerId);
       throw error;
@@ -643,19 +674,37 @@ export default class Game {
     const actions = ["fold"]; // always can fold
     const toCall = this.currentRoundMaxBet - player.currentBet;
 
-    // if no amount to call, can check
-    if (toCall === 0) {
+    // if the first player to act after flop
+    if (
+      this.currentRound !== "preflop" &&
+      this.currentRoundMaxBet === 0 &&
+      player.position === this.smallBlindPos
+    ) {
       actions.push("check");
+      // if player has enough chips, can bet
+      if (player.chips > 0) {
+        actions.push("bet");
+      }
     }
-
-    // if player chips are enough to call, can call
-    if (toCall > 0 && player.chips >= toCall) {
-      actions.push("call");
-    }
-
-    // if player chips are more than needed to call, can raise
-    if (player.chips > toCall) {
-      actions.push("raise");
+    // other cases
+    else {
+      // if no need to call, can check
+      if (toCall === 0) {
+        actions.push("check");
+        // if player has enough chips, can bet
+        if (player.chips > 0) {
+          actions.push("bet");
+        }
+      } else {
+        // if player has enough chips, can call
+        if (player.chips >= toCall) {
+          actions.push("call");
+        }
+        // if player has enough chips, can raise
+        if (player.chips > toCall) {
+          actions.push("raise");
+        }
+      }
     }
 
     // always can all-in (as long as there are chips)
@@ -668,82 +717,90 @@ export default class Game {
 
   // calculate all pots (main pot and side pots)
   calculatePots() {
-    // get all players who can continue
-    const activeBets = this.inHandPlayers
+    // get all players who can continue, and sort by total bet amount
+    const activePlayers = this.inHandPlayers
       .map((player) => ({
         id: player.id,
-        bet: player.totalBet,
-        chips: player.chips,
+        name: player.name,
+        totalBet: player.totalBet,
+        cards: player.cards,
       }))
-      .sort((a, b) => a.bet - b.bet); // sort by bet amount in ascending order
+      .sort((a, b) => a.totalBet - b.totalBet);
 
     let pots = [];
     let processedBet = 0;
 
     // create a pot for each different bet amount
-    while (activeBets.length > 0) {
-      const currentBet = activeBets[0].bet;
+    while (activePlayers.length > 0) {
+      const currentPlayer = activePlayers[0];
+      const currentBet = currentPlayer.totalBet;
       const betDifference = currentBet - processedBet;
 
       if (betDifference > 0) {
         // create a new pot
+        const potAmount = betDifference * activePlayers.length;
         const pot = {
-          amount: betDifference * activeBets.length,
-          players: activeBets.map((bet) => bet.id),
+          amount: potAmount,
+          players: activePlayers.map((p) => ({
+            id: p.id,
+            name: p.name,
+            cards: p.cards,
+          })),
         };
         pots.push(pot);
       }
 
       processedBet = currentBet;
-      activeBets.shift(); // remove the smallest bet
+      activePlayers.shift();
     }
 
     // update main pot and side pots
     this.mainPot = pots[0]?.amount || 0;
     this.sidePots = pots.slice(1);
+
+    // record each pot's players, for display
+    this.pots = pots.map((pot, index) => ({
+      amount: pot.amount,
+      players: pot.players,
+      isMainPot: index === 0,
+    }));
   }
 
   // distribute pots
-  distributeWinnings(winners) {
-    // handle main pot
-    if (this.mainPot > 0) {
-      const mainPotWinners = winners.filter((w) =>
-        this.inHandPlayers.some((p) => p.id === w.id)
-      );
-      if (mainPotWinners.length > 0) {
-        const mainPotShare = Math.floor(this.mainPot / mainPotWinners.length);
-        mainPotWinners.forEach((winner) => {
-          const player = this.findPlayerById(winner.id);
-          if (player) {
-            player.chips += mainPotShare;
-            this.addMessage(
-              `${player.name} wins ${mainPotShare} from main pot with ${winner.descr}`
-            );
-          }
-        });
-      }
-    }
+  distributePots() {
+    this.pots.forEach((pot, index) => {
+      // find winners of the pot
+      const potentialWinners = getWinner(pot.players);
 
-    // handle side pots
-    this.sidePots.forEach((sidePot, index) => {
-      const sidePotWinners = winners.filter((w) =>
-        sidePot.players.includes(w.id)
-      );
-      if (sidePotWinners.length > 0) {
-        const sidePotShare = Math.floor(sidePot.amount / sidePotWinners.length);
-        sidePotWinners.forEach((winner) => {
+      if (potentialWinners.length > 0) {
+        const potShare = Math.floor(pot.amount / potentialWinners.length);
+        let remainder = pot.amount % potentialWinners.length;
+
+        potentialWinners.forEach((winner) => {
           const player = this.findPlayerById(winner.id);
           if (player) {
-            player.chips += sidePotShare;
+            // if there is remainder, each winner gets 1 more chip, until remainder is 0
+            const extraChip = remainder > 0 ? 1 : 0;
+            remainder--;
+
+            const finalShare = potShare + extraChip;
+            player.chips += finalShare;
+
             this.addMessage(
-              `${player.name} wins ${sidePotShare} from side pot ${
-                index + 1
+              `${player.name} wins ${finalShare} from ${
+                pot.isMainPot ? "main pot" : `side pot ${index}`
               } with ${winner.descr}`
             );
           }
         });
       }
     });
+
+    // clear all pots
+    this.mainPot = 0;
+    this.sidePots = [];
+    this.pots = [];
+    this.pot = 0;
   }
 
   // show cards
@@ -753,15 +810,31 @@ export default class Game {
       throw new Error("Player not found");
     }
 
-    // if player has folded and is not forced to show cards, can choose not to show cards
-    if (player.isFolded && !isForced) {
+    // can only show cards in the following cases:
+    // 1. forced to show (last un-folded player at river)
+    // 2. the last un-folded player, and choose to show
+    if (!isForced && this.inHandPlayers.length !== 1) {
       return;
     }
 
     // record that the player has shown cards
     this.shownCards.add(playerId);
+  }
 
-    // broadcast player's cards
-    this.addMessage(`${player.name} shows ${player.cards.join(", ")}`);
+  // check if the round should end
+  shouldEndRound() {
+    // if there is no last raising player, the round is just starting
+    if (this.lastRaisePlayer === null) {
+      return false;
+    }
+
+    // check if all unfolded and not all-in players have acted and bet equal
+    const activePlayers = this.players.filter(
+      (p) => !p.isFolded && !p.isAllIn && p.isActive
+    );
+
+    return activePlayers.every(
+      (p) => p.currentBet === this.currentRoundMaxBet || p.isAllIn
+    );
   }
 }

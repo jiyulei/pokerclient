@@ -11,8 +11,8 @@ export default class Card {
     getSuit() {
         return this.suit;
     }   
-    
-    toString() {
+
+    toString() {    
         return `${this.rank} of ${this.suit}`;
     }   
 }   
