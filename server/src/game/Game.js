@@ -41,6 +41,9 @@ export default class Game {
       broadcast: [], // broadcast messages (everyone can see)
       playerMessages: {}, // messages for specific players
     };
+
+    this.mainPot = 0; // main pot   
+    this.sidePots = []; // side pots, each side pot contains amount and players
   }
 
   determineWinner() {
@@ -275,6 +278,8 @@ export default class Game {
         ? this.currentRoundMaxBet -
           (this.findPlayerById(playerId)?.currentBet || 0)
         : 0,
+      mainPot: this.mainPot,
+      sidePots: this.sidePots,
     };
   }
 
@@ -310,18 +315,11 @@ export default class Game {
   // end hand
   endHand() {
     const winners = this.determineWinner();
-    let winnings = Math.floor(this.pot / winners.length);
+    this.distributeWinnings(winners);
 
-    winners.forEach((winner) => {
-      // find actual player object by id
-      const player = this.findPlayerById(winner.id);
-      if (player) {
-        player.chips += winnings;
-      }
-    });
     console.log(
       "Winners:",
-      winners.map((winner) => winner.id + winner.name + winner.descr)
+      winners.map((winner) => `${winner.id} ${winner.name} ${winner.descr}`)
     );
 
     // check players status after each hand
@@ -337,8 +335,6 @@ export default class Game {
 
     // player bet
     const betAmount = player.bet(amount);
-
-    // update pot
     this.pot += betAmount;
 
     // update current round max bet
@@ -351,6 +347,7 @@ export default class Game {
     if (player.isAllIn) {
       this.addMessage(`Player ${player.name} is ALL IN!`);
       this.updateActivePlayers();
+      this.calculatePots();
     }
 
     return betAmount;
@@ -613,5 +610,85 @@ export default class Game {
     }
 
     return actions;
+  }
+
+  // calculate all pots (main pot and side pots)
+  calculatePots() {
+    // get all players who can continue
+    const activeBets = this.inHandPlayers
+      .map((player) => ({
+        id: player.id,
+        bet: player.totalBet,
+        chips: player.chips,
+      }))
+      .sort((a, b) => a.bet - b.bet); // sort by bet amount in ascending order
+
+    let pots = [];
+    let processedBet = 0;
+
+    // create a pot for each different bet amount
+    while (activeBets.length > 0) {
+      const currentBet = activeBets[0].bet;
+      const betDifference = currentBet - processedBet;
+
+      if (betDifference > 0) {
+        // create a new pot
+        const pot = {
+          amount: betDifference * activeBets.length,
+          players: activeBets.map((bet) => bet.id),
+        };
+        pots.push(pot);
+      }
+
+      processedBet = currentBet;
+      activeBets.shift(); // remove the smallest bet
+    }
+
+    // update main pot and side pots
+    this.mainPot = pots[0]?.amount || 0;
+    this.sidePots = pots.slice(1);
+  }
+
+  // distribute pots
+  distributeWinnings(winners) {
+    // handle main pot
+    if (this.mainPot > 0) {
+      const mainPotWinners = winners.filter((w) =>
+        this.inHandPlayers.some((p) => p.id === w.id)
+      );
+      if (mainPotWinners.length > 0) {
+        const mainPotShare = Math.floor(this.mainPot / mainPotWinners.length);
+        mainPotWinners.forEach((winner) => {
+          const player = this.findPlayerById(winner.id);
+          if (player) {
+            player.chips += mainPotShare;
+            this.addMessage(
+              `${player.name} wins ${mainPotShare} from main pot with ${winner.descr}`
+            );
+          }
+        });
+      }
+    }
+
+    // handle side pots
+    this.sidePots.forEach((sidePot, index) => {
+      const sidePotWinners = winners.filter((w) =>
+        sidePot.players.includes(w.id)
+      );
+      if (sidePotWinners.length > 0) {
+        const sidePotShare = Math.floor(sidePot.amount / sidePotWinners.length);
+        sidePotWinners.forEach((winner) => {
+          const player = this.findPlayerById(winner.id);
+          if (player) {
+            player.chips += sidePotShare;
+            this.addMessage(
+              `${player.name} wins ${sidePotShare} from side pot ${
+                index + 1
+              } with ${winner.descr}`
+            );
+          }
+        });
+      }
+    });
   }
 }
