@@ -1,10 +1,12 @@
 import pokersolver from "pokersolver";
-
 const { Hand } = pokersolver;
 
 export function getWinner(players) {
   const playerHands = players.map((player) => ({
-    hand: Hand.solve(player.hand),
+    hand: Hand.solve([
+      ...player.cards.map((card) => card.toString()),
+      ...this.communityCards.map((card) => card.toString()),
+    ]),
     id: player.id,
     name: player.name,
   }));

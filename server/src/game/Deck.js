@@ -2,33 +2,16 @@ import Card from "./Card";
 
 export default class Deck {
   constructor() {
-    this.suits = ["hearts", "diamonds", "clubs", "spades"];
-    this.ranks = [
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-      "7",
-      "8",
-      "9",
-      "10",
-      "J",
-      "Q",
-      "K",
-      "A",
-    ];
-    this.cards = this.generateCards();
-  }
+    this.cards = [];
+    // 使用数字表示牌面值，14代表A
+    const ranks = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+    const suits = ["hearts", "diamonds", "clubs", "spades"];
 
-  generateCards() {
-    const deck = [];
-    for (let suit of this.suits) {
-      for (let rank of this.ranks) {
-        deck.push(new Card(rank, suit));
+    for (let suit of suits) {
+      for (let rank of ranks) {
+        this.cards.push(new Card(rank, suit));
       }
     }
-    return deck;
   }
 
   shuffle() {
@@ -38,7 +21,7 @@ export default class Deck {
     }
   }
 
-  drawCard() {
+  deal() {
     return this.cards.pop();
   }
 }
