@@ -4,7 +4,7 @@ export default class Player {
     this.name = name;
     // TODO: check if player is guest
     this.chips = initialChips; // initial chips set by game
-    this.cards = [];
+    this.hand = [];
     this.isActive = true;
     this.isFolded = false;
     this.isAllIn = false;
@@ -16,7 +16,7 @@ export default class Player {
 
   // receive card from deck
   receiveCard(card) {
-    this.cards.push(card);
+    this.hand.push(card);
   }
 
   // let ui control the bet amount, max bet amount is the player's chips
@@ -41,12 +41,12 @@ export default class Player {
   fold() {
     this.isFolded = true;
     this.isActive = false;
-    this.cards = [];
+    this.hand = [];
   }
 
   // reset player status (when a new game round starts)
   reset() {
-    this.cards = [];
+    this.hand = [];
     this.isActive = true;
     this.isFolded = false;
     this.isAllIn = false;

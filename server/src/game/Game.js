@@ -1,5 +1,6 @@
 import Player from "./Player";
 import Deck from "./Deck";
+import { getWinner } from "./actions/Evaluate";
 // TODO: add spectator feature
 // TODO: add game history feature
 // TODO: might need to update name based on login user name
@@ -21,7 +22,7 @@ export default class Game {
     this.spectators = [];
     this.isGameInProgress = false;
 
-    // 当前局状态
+    // game state
     this.pot = 0; // current pot
     this.communityCards = []; // public cards
     this.currentPlayer = null; // current player
@@ -34,6 +35,10 @@ export default class Game {
     this.activePlayers = []; // current active players list
   }
 
+  determineWinner() {
+    const winners = getWinner(this.activePlayers);
+    return winners;
+  }
   // add player
   addPlayer(name) {
     if (this.players.length >= this.maxPlayers) {
@@ -255,4 +260,9 @@ export default class Game {
     return this.players.find((player) => player.position === position);
   }
 
+  // end hand
+  endHand() {
+    const winners = this.determineWinner();
+    console.log(winners);
+  }
 }
