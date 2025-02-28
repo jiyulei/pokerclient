@@ -4,7 +4,6 @@ describe("Game", () => {
   let game;
 
   beforeEach(() => {
-    // 每个测试前重置游戏实例
     game = new Game({
       smallBlind: 10,
       bigBlind: 20,
@@ -90,13 +89,12 @@ describe("Game", () => {
 
   describe("Player Actions Scenarios", () => {
     beforeEach(() => {
-      // 初始化游戏，设置小盲10，大盲20，其他设置用默认值
       game = new Game({
         smallBlind: 10,
         bigBlind: 20,
-        timeLimit: 1, // 测试时用较短超时
+        timeLimit: 1,
       });
-      // 添加3个玩家
+      // add 3 players
       game.addPlayer("Player1", "p1");
       game.addPlayer("Player2", "p2");
       game.addPlayer("Player3", "p3");
@@ -149,28 +147,6 @@ describe("Game", () => {
         expect(game.currentRoundMaxBet).toBe(0);
         expect(game.currentRound).toBe("flop");
       });
-      test("Players: raise, raise, call, call, then proceed to flop", () => {
-        game.startGame();
-        console.log("game.players", game.players);
-        const p1 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p1, "raise", 40);
-        expect(game.currentRoundMaxBet).toBe(40);
-
-        const p2 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p2, "raise", 80);
-        expect(game.currentRoundMaxBet).toBe(90);
-
-        const p3 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p3, "call");
-        expect(game.currentRoundMaxBet).toBe(90);
-
-        const p4 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p4, "call");
-        expect(game.currentRoundMaxBet).toBe(0);
-        expect(game.currentRound).toBe("flop");
-
-        console.log("game.players", game.players);
-      });
 
       test("Players: fold, call, then proceed to flop", () => {
         game.startGame();
@@ -188,36 +164,95 @@ describe("Game", () => {
         expect(game.currentRound).toBe("flop");
       });
 
-      test("Players: fold, fold, then last player wins immediately", () => {
-        game.startGame();
+      describe("Mutiple Raises", () => {
+        test("Players: raise, raise, call, call, then proceed to flop", () => {
+          game.startGame();
+          console.log("game.players", game.players);
+          const p1 = game.players[game.currentPlayer].id;
+          game.handlePlayerAction(p1, "raise", 40);
+          expect(game.currentRoundMaxBet).toBe(40);
 
-        // first player fold
-        const dealer = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(dealer, "fold");
+          const p2 = game.players[game.currentPlayer].id;
+          game.handlePlayerAction(p2, "raise", 80);
+          expect(game.currentRoundMaxBet).toBe(90);
 
-        expect(game.activePlayers.length).toBe(2);
+          const p3 = game.players[game.currentPlayer].id;
+          game.handlePlayerAction(p3, "call");
+          expect(game.currentRoundMaxBet).toBe(90);
 
-        // second player fold
-        const smallBlind = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(smallBlind, "fold");
+          const p4 = game.players[game.currentPlayer].id;
+          game.handlePlayerAction(p4, "call");
+          expect(game.currentRoundMaxBet).toBe(0);
+          expect(game.currentRound).toBe("flop");
 
-        expect(game.activePlayers.length).toBe(1);
+          console.log("game.players", game.players);
+        });
+      });
 
-        // verify the winner gets the pot
-        const winner = game.activePlayers[0];
-        expect(winner.chips).toBeGreaterThan(1000); // should be more than initial chips
-        // fast forward time, wait for new game to start
-        jest.advanceTimersByTime(3000);
-        console.log("game.round", game.round);
+      describe("Mutiple Fold", () => {
+        test("Players: fold, fold, then last player wins immediately", () => {
+          game.startGame();
 
-        // verify the new game has started
-        expect(game.round).toBe(2); // second round
-        expect(game.currentRound).toBe("preflop");
-        expect(game.pot).toBe(30);
-        // verify all players' status has been reset
-        game.players.forEach((player) => {
-          expect(player.isFolded).toBe(false);
-          expect(player.hand.length).toBe(2);
+          // first player fold
+          const dealer = game.players[game.currentPlayer].id;
+          game.handlePlayerAction(dealer, "fold");
+
+          expect(game.activePlayers.length).toBe(2);
+
+          // second player fold
+          const smallBlind = game.players[game.currentPlayer].id;
+          game.handlePlayerAction(smallBlind, "fold");
+
+          expect(game.activePlayers.length).toBe(1);
+
+          // verify the winner gets the pot
+          const winner = game.activePlayers[0];
+          expect(winner.chips).toBeGreaterThan(1000); // should be more than initial chips
+          // fast forward time, wait for new game to start
+          jest.advanceTimersByTime(3000);
+          console.log("game.round", game.round);
+
+          // verify the new game has started
+          expect(game.round).toBe(2); // second round
+          expect(game.currentRound).toBe("preflop");
+          expect(game.pot).toBe(30);
+          // verify all players' status has been reset
+          game.players.forEach((player) => {
+            expect(player.isFolded).toBe(false);
+            expect(player.hand.length).toBe(2);
+          });
+        });
+      });
+
+      describe("All-in and Side Pot Formation", () => {
+        test.only("When a player goes all-in and others continue betting, side pots are formed", () => {
+          // 调整玩家筹码：让 Player1 筹码较少
+          game.players = []; // 重置玩家
+          game.addPlayer("BigBlind", "p1");
+          game.addPlayer("Dealer", "p2");
+          game.addPlayer("SmallBlind", "p3");
+          game.players[0].chips = 50; // Player1只有50
+          // Player2和Player3保持默认筹码（1000）
+
+          game.startGame();
+
+          console.log("game.players", game.players);
+          game.handlePlayerAction("p2", "raise", 100);
+
+          game.handlePlayerAction("p3", "call");
+          expect(game.currentRound).toBe("preflop");
+
+          game.handlePlayerAction("p1", "allin");
+
+          console.log("game.players", game.players);
+
+          // 计算底池
+          game.calculatePots();
+          // 断言 sidePots 存在（至少1个 side pot）
+          expect(game.sidePots.length).toBeGreaterThan(0);
+
+          console.log("game.currentRound", game.currentRound);
+          expect(game.currentRound).toBe("flop");
         });
       });
     });
