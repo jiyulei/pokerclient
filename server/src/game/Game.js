@@ -840,15 +840,15 @@ export default class Game {
     );
   }
 
-  // 新增方法：当只剩一个玩家时结束这一局
+  // end hand with one player
   endHandWithOnePlayer() {
     const winner = this.activePlayers[0];
-    winner.chips += this.pot; // 只在这里分配一次底池
+    winner.chips += this.pot;
     this.pot = 0;
     this.currentRound = null;
     this.currentRoundMaxBet = 0;
 
-    // 重置游戏状态
+    // reset game state
     setTimeout(() => {
       this.startNewHand();
     }, 3000);
