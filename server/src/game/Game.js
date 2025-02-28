@@ -604,11 +604,7 @@ export default class Game {
     try {
       switch (action) {
         case "fold":
-          const shouldEndHand = this.handleFold(playerId);
-          if (shouldEndHand) {
-            this.endHandWithOnePlayer();
-            return;
-          }
+          this.handleFold(playerId);
           break;
         case "check":
           this.handleCheck(playerId);

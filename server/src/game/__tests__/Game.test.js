@@ -85,7 +85,7 @@ describe("Game", () => {
     // other tests...
   });
 
-  // 模拟延迟环境下直接调用动作，不等待真实超时
+  // simulate delay environment, call action directly, not wait for real timeout
   jest.useFakeTimers();
 
   describe("Player Actions Scenarios", () => {
@@ -186,45 +186,39 @@ describe("Game", () => {
         game.handlePlayerAction(p2, "call");
         expect(game.currentRoundMaxBet).toBe(0);
         expect(game.currentRound).toBe("flop");
-
-        console.log("game.players", game.players);
       });
 
       test("Players: fold, fold, then last player wins immediately", () => {
         game.startGame();
 
-        console.log("Initial state:", {
-          totalPlayers: game.players.length,
-          activePlayers: game.activePlayers.length,
-          foldedPlayers: game.players.filter((p) => p.isFolded).length,
-        });
-
-        // 第一个玩家 fold
-        const p1 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p1, "fold");
-
-        console.log("After first fold:", {
-          totalPlayers: game.players.length,
-          activePlayers: game.activePlayers.length,
-          foldedPlayers: game.players.filter((p) => p.isFolded).length,
-          currentPlayer: game.currentPlayer,
-        });
+        // first player fold
+        const dealer = game.players[game.currentPlayer].id;
+        game.handlePlayerAction(dealer, "fold");
 
         expect(game.activePlayers.length).toBe(2);
 
-        // 第二个玩家 fold
-        const p2 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p2, "fold");
-
-        console.log("After second fold:", {
-          totalPlayers: game.players.length,
-          activePlayers: game.activePlayers.length,
-          foldedPlayers: game.players.filter((p) => p.isFolded).length,
-          currentPlayer: game.currentPlayer,
-        });
+        // second player fold
+        const smallBlind = game.players[game.currentPlayer].id;
+        game.handlePlayerAction(smallBlind, "fold");
 
         expect(game.activePlayers.length).toBe(1);
-        // ... 其他验证
+
+        // verify the winner gets the pot
+        const winner = game.activePlayers[0];
+        expect(winner.chips).toBeGreaterThan(1000); // should be more than initial chips
+        // fast forward time, wait for new game to start
+        jest.advanceTimersByTime(3000);
+        console.log("game.round", game.round);
+
+        // verify the new game has started
+        expect(game.round).toBe(2); // second round
+        expect(game.currentRound).toBe("preflop");
+        expect(game.pot).toBe(30);
+        // verify all players' status has been reset
+        game.players.forEach((player) => {
+          expect(player.isFolded).toBe(false);
+          expect(player.hand.length).toBe(2);
+        });
       });
     });
 
