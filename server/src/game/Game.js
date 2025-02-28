@@ -291,21 +291,14 @@ export default class Game {
 
   // update active players list when a player folds
   updateActivePlayers() {
-    // update players who can continue (excluding folded and all-in players)
     this.activePlayers = this.players.filter(
       (player) => player.isActive && !player.isFolded && !player.isAllIn
     );
     this.activePlayerCount = this.activePlayers.length;
 
-    // update players in hand (excluding folded players)
     this.inHandPlayers = this.players.filter(
       (player) => player.isActive && !player.isFolded
     );
-
-    // if there is only one player who can continue, this round ends
-    if (this.activePlayerCount === 1) {
-      this.endHand();
-    }
   }
 
   // find player by id
@@ -404,9 +397,7 @@ export default class Game {
 
     this.updateActivePlayers();
 
-    // check if there is only one active player
     if (this.activePlayers.length === 1) {
-      // if there is only one player, call endHandWithOnePlayer
       this.endHandWithOnePlayer();
       return true;
     }
