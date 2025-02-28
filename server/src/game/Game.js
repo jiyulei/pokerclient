@@ -393,12 +393,16 @@ export default class Game {
   // handle player fold
   handleFold(playerId) {
     const player = this.findPlayerById(playerId);
-    if (!player) {
-      throw new Error("Player not found");
-    }
-
     player.fold();
-    this.updateActivePlayers();
+    
+    // 先更新 activePlayers 数组
+    this.activePlayers = this.players.filter(p => !p.isFolded);
+    
+    // 然后再检查长度
+    if (this.activePlayers.length === 1) {
+        return true; // 返回一个标志表示需要结束游戏
+    }
+    return false;
   }
 
   // handle player check
@@ -601,7 +605,11 @@ export default class Game {
     try {
       switch (action) {
         case "fold":
-          this.handleFold(playerId);
+          const shouldEndHand = this.handleFold(playerId);
+          if (shouldEndHand) {
+            this.endHandWithOnePlayer();
+            return;
+          }
           break;
         case "check":
           this.handleCheck(playerId);
@@ -749,27 +757,33 @@ export default class Game {
 
   // distribute pots
   distributePots() {
-    this.pots.forEach((pot, index) => {
-      // find winners of the pot
-      const potentialWinners = getWinner(pot.players);
+    // 从主池开始分配
+    if (this.mainPot > 0) {
+      const mainPotWinners = getWinner(this.pots[0].players);
+      const mainPotShare = Math.floor(this.mainPot / mainPotWinners.length);
+      mainPotWinners.forEach((winner) => {
+        const player = this.findPlayerById(winner.id);
+        if (player) {
+          player.chips += mainPotShare;
+          this.addMessage(
+            `${player.name} wins ${mainPotShare} from main pot with ${winner.descr}`
+          );
+        }
+      });
+    }
 
-      if (potentialWinners.length > 0) {
-        const potShare = Math.floor(pot.amount / potentialWinners.length);
-        let remainder = pot.amount % potentialWinners.length;
-
-        potentialWinners.forEach((winner) => {
+    // 分配每个边池
+    this.sidePots.forEach((pot, index) => {
+      if (pot.amount > 0) {
+        const potWinners = getWinner(pot.players);
+        const potShare = Math.floor(pot.amount / potWinners.length);
+        potWinners.forEach((winner) => {
           const player = this.findPlayerById(winner.id);
           if (player) {
-            // if there is remainder, each winner gets 1 more chip, until remainder is 0
-            const extraChip = remainder > 0 ? 1 : 0;
-            remainder--;
-
-            const finalShare = potShare + extraChip;
-            player.chips += finalShare;
-
+            player.chips += potShare;
             this.addMessage(
-              `${player.name} wins ${finalShare} from ${
-                pot.isMainPot ? "main pot" : `side pot ${index}`
+              `${player.name} wins ${potShare} from side pot ${
+                index + 1
               } with ${winner.descr}`
             );
           }
@@ -777,10 +791,9 @@ export default class Game {
       }
     });
 
-    // clear all pots
+    // 清空所有池
     this.mainPot = 0;
     this.sidePots = [];
-    this.pots = [];
     this.pot = 0;
   }
 
@@ -817,5 +830,19 @@ export default class Game {
     return activePlayers.every(
       (p) => p.currentBet === this.currentRoundMaxBet || p.isAllIn
     );
+  }
+
+  // 新增方法：当只剩一个玩家时结束这一局
+  endHandWithOnePlayer() {
+    const winner = this.activePlayers[0];
+    winner.chips += this.pot; // 只在这里分配一次底池
+    this.pot = 0;
+    this.currentRound = null;
+    this.currentRoundMaxBet = 0;
+
+    // 重置游戏状态
+    setTimeout(() => {
+      this.startNewHand();
+    }, 3000);
   }
 }
