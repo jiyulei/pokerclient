@@ -154,9 +154,6 @@ export default class Game {
     // move button position
     this.moveButton();
 
-    // collect blinds
-    this.collectBlinds();
-
     // deal hole cards
     this.dealHoleCards();
 
@@ -187,29 +184,13 @@ export default class Game {
     }
   }
 
-  // collect blinds
-  collectBlinds() {
-    const smallBlindPlayer = this.players[this.smallBlindPos];
-    const bigBlindPlayer = this.players[this.bigBlindPos];
-
-    // collect small blind
-    const sbAmount = smallBlindPlayer.bet(this.smallBlind);
-    this.pot += sbAmount;
-
-    // collect big blind
-    const bbAmount = bigBlindPlayer.bet(this.bigBlind);
-    this.pot += bbAmount;
-
-    this.currentRoundMaxBet = this.bigBlind;
-  }
-
   // deal hole cards
   dealHoleCards() {
     // each player receives 2 cards
     for (let i = 0; i < 2; i++) {
       this.players.forEach((player) => {
         if (player.isActive) {
-          player.receiveCard(this.deck.drawCard());
+          player.receiveCard(this.deck.deal());
         }
       });
     }
@@ -243,16 +224,16 @@ export default class Game {
   // deal public cards
   dealFlop() {
     for (let i = 0; i < 3; i++) {
-      this.communityCards.push(this.deck.drawCard());
+      this.communityCards.push(this.deck.deal());
     }
   }
 
   dealTurn() {
-    this.communityCards.push(this.deck.drawCard());
+    this.communityCards.push(this.deck.deal());
   }
 
   dealRiver() {
-    this.communityCards.push(this.deck.drawCard());
+    this.communityCards.push(this.deck.deal());
   }
 
   // get game current state
@@ -292,7 +273,7 @@ export default class Game {
               .map((player) => ({
                 id: player.id,
                 name: player.name,
-                cards: player.cards,
+                cards: player.hand,
                 position: player.position,
               }))
           : null,
@@ -723,7 +704,7 @@ export default class Game {
         id: player.id,
         name: player.name,
         totalBet: player.totalBet,
-        cards: player.cards,
+        cards: player.hand,
       }))
       .sort((a, b) => a.totalBet - b.totalBet);
 
