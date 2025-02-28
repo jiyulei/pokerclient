@@ -361,6 +361,13 @@ export default class Game {
 
     // check players status
     this.checkPlayersStatus();
+
+    // if game is still in progress, start a new hand after 3 seconds
+    if (this.isGameInProgress && this.players.length >= 2) {
+      setTimeout(() => {
+        this.startNewHand();
+      }, 3000); // 3 seconds delay, adjust as needed
+    }
   }
 
   // handle player bet
@@ -394,13 +401,14 @@ export default class Game {
   handleFold(playerId) {
     const player = this.findPlayerById(playerId);
     player.fold();
-    
-    // 先更新 activePlayers 数组
-    this.activePlayers = this.players.filter(p => !p.isFolded);
-    
-    // 然后再检查长度
+
+    this.updateActivePlayers();
+
+    // check if there is only one active player
     if (this.activePlayers.length === 1) {
-        return true; // 返回一个标志表示需要结束游戏
+      // if there is only one player, call endHandWithOnePlayer
+      this.endHandWithOnePlayer();
+      return true;
     }
     return false;
   }
