@@ -580,10 +580,14 @@ export default class Game {
     do {
       this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
 
-      // if back to the last raising player, this round ends
+      // when back to the last raising player, if the player is all-in, also end the round
       if (this.currentPlayer === this.lastRaisePlayer) {
-        this.nextRound();
-        return;
+        const lastRaisePlayer = this.players[this.lastRaisePlayer];
+        // if the last raising player is all-in, or all active players have bet equal, go to next round
+        if (lastRaisePlayer.isAllIn || this.shouldEndRound()) {
+          this.nextRound();
+          return;
+        }
       }
     } while (
       !this.players[this.currentPlayer].isActive ||
@@ -629,8 +633,10 @@ export default class Game {
         case "allin":
           const allinAmount = player.chips;
           this.handleBet(playerId, allinAmount);
-          if (allinAmount > this.currentRoundMaxBet) {
+          // 修改这里：如果all-in金额大于当前最大下注，设置为最后加注者
+          if (player.currentBet > this.currentRoundMaxBet) {
             this.lastRaisePlayer = player.position;
+            this.currentRoundMaxBet = player.currentBet;
           }
           break;
         case "showCards":

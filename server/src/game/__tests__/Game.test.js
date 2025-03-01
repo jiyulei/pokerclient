@@ -108,8 +108,6 @@ describe("Game", () => {
         expect(game.currentRoundMaxBet).toBe(20);
 
         // simulate the first player to call:
-        console.log("game.players", game.players);
-
         const p2 = game.players[game.currentPlayer].id;
         game.handlePlayerAction(p2, "call");
         expect(game.currentRoundMaxBet).toBe(20);
@@ -130,12 +128,11 @@ describe("Game", () => {
         expect(game.currentRoundMaxBet).toBe(0);
         // when all players' bets are equal, pre-betting round ends, and enter flop
         expect(game.currentRound).toBe("flop");
-        console.log("game.players", game.players);
+        expect(game.pot).toBe(150);
       });
 
       test("Players: call, call then proceed to flop", () => {
         game.startGame();
-        console.log("game.players", game.players);
         const p1 = game.players[game.currentPlayer].id;
         game.handlePlayerAction(p1, "call");
 
@@ -146,14 +143,16 @@ describe("Game", () => {
 
         expect(game.currentRoundMaxBet).toBe(0);
         expect(game.currentRound).toBe("flop");
+        expect(game.pot).toBe(60);
       });
 
       test("Players: fold, call, then proceed to flop", () => {
         game.startGame();
         expect(game.activePlayers.length).toBe(3);
-        console.log("game.players", game.players);
+
         const p1 = game.players[game.currentPlayer].id;
         game.handlePlayerAction(p1, "fold");
+
         expect(game.activePlayers.length).toBe(2);
         expect(game.currentRoundMaxBet).toBe(20);
 
@@ -162,12 +161,12 @@ describe("Game", () => {
         game.handlePlayerAction(p2, "call");
         expect(game.currentRoundMaxBet).toBe(0);
         expect(game.currentRound).toBe("flop");
+        expect(game.pot).toBe(40);
       });
 
       describe("Mutiple Raises", () => {
         test("Players: raise, raise, call, call, then proceed to flop", () => {
           game.startGame();
-          console.log("game.players", game.players);
           const p1 = game.players[game.currentPlayer].id;
           game.handlePlayerAction(p1, "raise", 40);
           expect(game.currentRoundMaxBet).toBe(40);
@@ -185,7 +184,7 @@ describe("Game", () => {
           expect(game.currentRoundMaxBet).toBe(0);
           expect(game.currentRound).toBe("flop");
 
-          console.log("game.players", game.players);
+          expect(game.pot).toBe(270);
         });
       });
 
@@ -210,7 +209,6 @@ describe("Game", () => {
           expect(winner.chips).toBeGreaterThan(1000); // should be more than initial chips
           // fast forward time, wait for new game to start
           jest.advanceTimersByTime(3000);
-          console.log("game.round", game.round);
 
           // verify the new game has started
           expect(game.round).toBe(2); // second round
@@ -225,18 +223,16 @@ describe("Game", () => {
       });
 
       describe("All-in and Side Pot Formation", () => {
-        test.only("When a player goes all-in and others continue betting, side pots are formed", () => {
-          // 调整玩家筹码：让 Player1 筹码较少
-          game.players = []; // 重置玩家
+        test("When a player goes all-in and others continue betting, side pots are formed", () => {
+          // reset players
+          game.players = [];
           game.addPlayer("BigBlind", "p1");
           game.addPlayer("Dealer", "p2");
           game.addPlayer("SmallBlind", "p3");
           game.players[0].chips = 50; // Player1只有50
-          // Player2和Player3保持默认筹码（1000）
 
           game.startGame();
 
-          console.log("game.players", game.players);
           game.handlePlayerAction("p2", "raise", 100);
 
           game.handlePlayerAction("p3", "call");
@@ -244,14 +240,36 @@ describe("Game", () => {
 
           game.handlePlayerAction("p1", "allin");
 
-          console.log("game.players", game.players);
-
-          // 计算底池
+          // calculate pots
           game.calculatePots();
-          // 断言 sidePots 存在（至少1个 side pot）
+          // assert sidePots exists (at least 1 side pot)
           expect(game.sidePots.length).toBeGreaterThan(0);
+          expect(game.currentRound).toBe("flop");
+        });
 
-          console.log("game.currentRound", game.currentRound);
+        test("When two players go all-in, pot should be correct", () => {
+          game.players = [];
+          game.addPlayer("BigBlind", "p1");
+          game.players[0].chips = 100;
+
+          game.addPlayer("Dealer", "p2");
+          game.players[1].chips = 50;
+
+          game.addPlayer("SmallBlind", "p3");
+          game.players[2].chips = 50;
+
+          game.startGame();
+          // dealer all-in
+          game.handlePlayerAction("p2", "allin");
+
+          // small blind all-in
+          game.handlePlayerAction("p3", "allin");
+
+          // big blind call
+          game.handlePlayerAction("p1", "call");
+
+          // verify result
+          expect(game.pot).toBe(150); // 50 * 3 = 150
           expect(game.currentRound).toBe("flop");
         });
       });
