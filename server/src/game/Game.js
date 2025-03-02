@@ -642,6 +642,7 @@ export default class Game {
           break;
         case "call":
           this.handleBet(playerId, this.currentRoundMaxBet - player.currentBet);
+          this.calculatePots();
           break;
         case "bet":
           if (this.currentRoundMaxBet > 0) {
@@ -660,11 +661,11 @@ export default class Game {
         case "allin":
           const allinAmount = player.chips;
           this.handleBet(playerId, allinAmount);
-          // 修改这里：如果all-in金额大于当前最大下注，设置为最后加注者
           if (player.currentBet > this.currentRoundMaxBet) {
             this.lastRaisePlayer = player.position;
             this.currentRoundMaxBet = player.currentBet;
           }
+          this.calculatePots();
           break;
         case "showCards":
           this.showCards(playerId);
@@ -734,7 +735,6 @@ export default class Game {
 
   // calculate all pots (main pot and side pots)
   calculatePots() {
-    // get all players who can continue, and sort by total bet amount
     const activePlayers = this.inHandPlayers
       .map((player) => ({
         id: player.id,
@@ -744,17 +744,32 @@ export default class Game {
       }))
       .sort((a, b) => a.totalBet - b.totalBet);
 
+    console.log(
+      "Active players and their bets:",
+      activePlayers.map((p) => ({
+        name: p.name,
+        totalBet: p.totalBet,
+      }))
+    );
+
+    // 如果所有玩家下注相等，只创建一个主池
+    if (activePlayers.every((p) => p.totalBet === activePlayers[0].totalBet)) {
+      this.mainPot = this.pot;
+      this.sidePots = [];
+      return;
+    }
+
     let pots = [];
     let processedBet = 0;
 
-    // create a pot for each different bet amount
+    // 为每个不同的下注金额创建一个底池
     while (activePlayers.length > 0) {
       const currentPlayer = activePlayers[0];
       const currentBet = currentPlayer.totalBet;
       const betDifference = currentBet - processedBet;
 
       if (betDifference > 0) {
-        // create a new pot
+        // 创建新的底池
         const potAmount = betDifference * activePlayers.length;
         const pot = {
           amount: potAmount,
@@ -771,7 +786,7 @@ export default class Game {
       activePlayers.shift();
     }
 
-    // update main pot and side pots
+    // 更新主池和边池
     this.mainPot = pots[0]?.amount || 0;
     this.sidePots = pots.slice(1);
 

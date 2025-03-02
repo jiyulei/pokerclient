@@ -273,31 +273,32 @@ describe("Game", () => {
           expect(game.currentRound).toBe("flop");
         });
 
-         test("When two players go all-in, pot should be correct", () => {
-           game.players = [];
-           game.addPlayer("BigBlind", "p1");
-           game.players[0].chips = 100;
+        test("When all players bet equal amount, there should be only main pot", () => {
+          game.players = [];
+          game.addPlayer("BigBlind", "p1");
+          game.players[0].chips = 150;
 
-           game.addPlayer("Dealer", "p2");
-           game.players[1].chips = 100;
+          game.addPlayer("Dealer", "p2");
+          game.players[1].chips = 100;
 
-           game.addPlayer("SmallBlind", "p3");
-           game.players[2].chips = 100;
+          game.addPlayer("SmallBlind", "p3");
+          game.players[2].chips = 100;
 
-           game.startGame();
-           // dealer all-in
-           game.handlePlayerAction("p2", "allin");
+          game.startGame();
+          // dealer all-in
+          game.handlePlayerAction("p2", "allin");
 
-           // small blind all-in
-           game.handlePlayerAction("p3", "allin");
+          // small blind all-in
+          game.handlePlayerAction("p3", "allin");
 
-           // big blind call
-           game.handlePlayerAction("p1", "call");
+          // big blind call
+          game.handlePlayerAction("p1", "call");
 
-           // verify result
-           expect(game.mainPot).toBe(300); // 50 * 3 = 150
-          //  expect(game.currentRound).toBe("flop");
-         });
+          // verify result
+          expect(game.sidePots.length).toBe(0); // 不应该有边池
+          expect(game.mainPot).toBe(300); // 主池应该是300
+          expect(game.pot).toBe(300); // 总底池300
+        });
       });
     });
 
