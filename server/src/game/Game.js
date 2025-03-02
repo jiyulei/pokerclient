@@ -577,13 +577,40 @@ export default class Game {
       clearTimeout(this.actionTimeout);
     }
 
+    // 1) First check: are all remaining players all-in?
+    const stillInPlayers = this.inHandPlayers.filter((p) => !p.isFolded);
+    const allAllIn =
+      stillInPlayers.length > 1 && stillInPlayers.every((p) => p.isAllIn);
+
+    if (allAllIn) {
+      // Deal all remaining community cards
+      while (this.currentRound !== "river") {
+        switch (this.currentRound) {
+          case "preflop":
+            this.dealFlop();
+            this.currentRound = "flop";
+            break;
+          case "flop":
+            this.dealTurn();
+            this.currentRound = "turn";
+            break;
+          case "turn":
+            this.dealRiver();
+            this.currentRound = "river";
+            break;
+        }
+      }
+      // End the hand immediately
+      this.endHand();
+      return;
+    }
+
+    // 2) Otherwise: find next player
     do {
       this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
 
-      // when back to the last raising player, if the player is all-in, also end the round
       if (this.currentPlayer === this.lastRaisePlayer) {
         const lastRaisePlayer = this.players[this.lastRaisePlayer];
-        // if the last raising player is all-in, or all active players have bet equal, go to next round
         if (lastRaisePlayer.isAllIn || this.shouldEndRound()) {
           this.nextRound();
           return;
