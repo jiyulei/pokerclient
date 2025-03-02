@@ -48,8 +48,8 @@ export default class Game {
   }
 
   determineWinner() {
-    // use players in hand (including all-in players) to determine winners
-    const winners = getWinner(this.inHandPlayers);
+    // 传入 communityCards
+    const winners = getWinner(this.inHandPlayers, this.communityCards);
     return winners;
   }
   // add player
@@ -758,9 +758,11 @@ export default class Game {
 
   // distribute pots
   distributePots() {
-    // 从主池开始分配
     if (this.mainPot > 0) {
-      const mainPotWinners = getWinner(this.pots[0].players);
+      const mainPotWinners = getWinner(
+        this.pots[0].players,
+        this.communityCards
+      );
       const mainPotShare = Math.floor(this.mainPot / mainPotWinners.length);
       mainPotWinners.forEach((winner) => {
         const player = this.findPlayerById(winner.id);
@@ -776,7 +778,7 @@ export default class Game {
     // 分配每个边池
     this.sidePots.forEach((pot, index) => {
       if (pot.amount > 0) {
-        const potWinners = getWinner(pot.players);
+        const potWinners = getWinner(pot.players, this.communityCards);
         const potShare = Math.floor(pot.amount / potWinners.length);
         potWinners.forEach((winner) => {
           const player = this.findPlayerById(winner.id);
