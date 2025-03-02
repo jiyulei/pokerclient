@@ -272,6 +272,32 @@ describe("Game", () => {
           expect(game.pot).toBe(150); // 50 * 3 = 150
           expect(game.currentRound).toBe("flop");
         });
+
+         test("When two players go all-in, pot should be correct", () => {
+           game.players = [];
+           game.addPlayer("BigBlind", "p1");
+           game.players[0].chips = 100;
+
+           game.addPlayer("Dealer", "p2");
+           game.players[1].chips = 100;
+
+           game.addPlayer("SmallBlind", "p3");
+           game.players[2].chips = 100;
+
+           game.startGame();
+           // dealer all-in
+           game.handlePlayerAction("p2", "allin");
+
+           // small blind all-in
+           game.handlePlayerAction("p3", "allin");
+
+           // big blind call
+           game.handlePlayerAction("p1", "call");
+
+           // verify result
+           expect(game.mainPot).toBe(300); // 50 * 3 = 150
+          //  expect(game.currentRound).toBe("flop");
+         });
       });
     });
 
