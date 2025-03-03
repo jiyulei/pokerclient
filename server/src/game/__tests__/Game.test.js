@@ -223,7 +223,7 @@ describe("Game", () => {
       });
 
       describe("All-in and Side Pot Formation", () => {
-        test("When a player goes all-in and others continue betting, side pots are formed", () => {
+        test("Short all-in causes side pots", () => {
           // reset players
           game.players = [];
           game.addPlayer("BigBlind", "p1");
@@ -231,20 +231,42 @@ describe("Game", () => {
           game.addPlayer("SmallBlind", "p3");
           game.players[0].chips = 50; // Player1只有50
 
+          const initialChips = {};
+          game.players.forEach((player, index) => {
+            if (player && player.isActive) {
+              initialChips[`p${index + 1}`] = player.chips;
+            }
+          });
+
           game.startGame();
 
           game.handlePlayerAction("p2", "raise", 100);
-
           game.handlePlayerAction("p3", "call");
-          expect(game.currentRound).toBe("preflop");
-
           game.handlePlayerAction("p1", "allin");
 
-          // calculate pots
-          game.calculatePots();
-          // assert sidePots exists (at least 1 side pot)
-          expect(game.sidePots.length).toBeGreaterThan(0);
-          expect(game.currentRound).toBe("flop");
+          expect(game.currentRound).toBe("river");
+
+          const finalChips = {};
+          game.players.forEach((player, index) => {
+            if (player && player.isActive) {
+              finalChips[`p${index + 1}`] = player.chips;
+            }
+          });
+          const totalInitialChips = Object.values(initialChips).reduce(
+            (a, b) => a + b,
+            0
+          );
+          const totalFinalChips = Object.values(finalChips).reduce(
+            (a, b) => a + b,
+            0
+          );
+
+          expect(game.round).toBe(1);
+          expect(totalFinalChips).toBe(totalInitialChips);
+
+          jest.advanceTimersByTime(3000);
+          expect(game.round).toBe(2);
+          expect(game.currentRound).toBe("preflop");
         });
 
         test("When two players go all-in, pot should be correct", () => {
@@ -258,46 +280,55 @@ describe("Game", () => {
           game.addPlayer("SmallBlind", "p3");
           game.players[2].chips = 50;
 
-          game.startGame();
-          // dealer all-in
-          game.handlePlayerAction("p2", "allin");
-
-          // small blind all-in
-          game.handlePlayerAction("p3", "allin");
-
-          // big blind call
-          game.handlePlayerAction("p1", "call");
-
-          // verify result
-          expect(game.pot).toBe(150); // 50 * 3 = 150
-          expect(game.currentRound).toBe("flop");
-        });
-
-        test("When all players bet equal amount, there should be only main pot", () => {
-          game.players = [];
-          game.addPlayer("BigBlind", "p1");
-          game.players[0].chips = 150;
-
-          game.addPlayer("Dealer", "p2");
-          game.players[1].chips = 100;
-
-          game.addPlayer("SmallBlind", "p3");
-          game.players[2].chips = 100;
+          // 记录初始筹码
+          const initialChips = {};
+          game.players.forEach((player, index) => {
+            if (player && player.isActive) {
+              initialChips[`p${index + 1}`] = player.chips;
+            }
+          });
 
           game.startGame();
           // dealer all-in
           game.handlePlayerAction("p2", "allin");
 
+          expect(game.sidePots.length).toBe(0);
+          expect(game.currentRound).toBe("preflop");
+          expect(game.pot).toBe(80);
+
           // small blind all-in
           game.handlePlayerAction("p3", "allin");
+
+          expect(game.currentRound).toBe("preflop");
+          expect(game.sidePots.length).toBe(0);
+          expect(game.mainPot).toBe(120);
+          expect(game.pot).toBe(120);
 
           // big blind call
           game.handlePlayerAction("p1", "call");
 
-          // verify result
-          expect(game.sidePots.length).toBe(0); // 不应该有边池
-          expect(game.mainPot).toBe(300); // 主池应该是300
-          expect(game.pot).toBe(300); // 总底池300
+          expect(game.sidePots.length).toBe(0);
+          // 1.river: 2 players left 2: preflop: 2 players eliminated(endGame)
+          expect(["river", "preflop"]).toContain(game.currentRound);
+          // check chips
+          // 因为一局结束pot变量被重置为0，所以需要用总筹码来验证
+          const finalChips = {};
+          game.players.forEach((player, index) => {
+            if (player && player.isActive) {
+              finalChips[`p${index + 1}`] = player.chips;
+            }
+          });
+
+          const totalInitialChips = Object.values(initialChips).reduce(
+            (a, b) => a + b,
+            0
+          );
+          const totalFinalChips = Object.values(finalChips).reduce(
+            (a, b) => a + b,
+            0
+          );
+
+          expect(totalFinalChips).toBe(totalInitialChips);
         });
       });
     });

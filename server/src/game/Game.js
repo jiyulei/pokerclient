@@ -140,7 +140,14 @@ export default class Game {
     this.deck.shuffle();
 
     // reset all players' status
-    this.players.forEach((player) => player.reset());
+    this.players.forEach((player) => {
+      if (player.chips > 0) {
+        player.reset();
+        player.isActive = true;
+      } else {
+        player.isActive = false;
+      }
+    });
 
     // reset active players list
     this.activePlayers = this.players.filter((player) => player.isActive);
@@ -582,7 +589,6 @@ export default class Game {
     }, this.timeLimit * 1000);
   }
 
-  // move to next player
   moveToNextPlayer() {
     if (this.actionTimeout) {
       clearTimeout(this.actionTimeout);
@@ -591,11 +597,10 @@ export default class Game {
     // 1) First check: should we deal all cards?
     const stillInPlayers = this.inHandPlayers.filter((p) => !p.isFolded);
 
-    // 检查是否满足以下任一条件：
-    // a) 所有玩家都 all-in
-    // b) 除了一个玩家外都 all-in，且该玩家已经 call 了所有下注
+    // 判断是否所有玩家都全下
     const allAllIn =
       stillInPlayers.length > 1 && stillInPlayers.every((p) => p.isAllIn);
+    // 判断是否除一人外都全下，且那唯一未全下的玩家已经投入了当前最大注
     const allButOneAllIn =
       stillInPlayers.length > 1 &&
       stillInPlayers.filter((p) => p.isAllIn).length ===
@@ -604,11 +609,20 @@ export default class Game {
         (p) => p.isAllIn || p.currentBet === this.currentRoundMaxBet
       );
 
-    if (allAllIn || allButOneAllIn) {
+    // 新增逻辑：短码 all-in 不重新打开加注
+    // 如果有玩家 all-in 且其下注少于当前轮最大注，同时其他非全下玩家已都投入至少当前轮最大注，则结束本轮
+    const hasShortAllIn = stillInPlayers.some(
+      (p) => p.isAllIn && p.currentBet < this.currentRoundMaxBet
+    );
+    const othersCovered = stillInPlayers
+      .filter((p) => !p.isAllIn)
+      .every((p) => p.currentBet >= this.currentRoundMaxBet);
+
+    if (allAllIn || allButOneAllIn || (hasShortAllIn && othersCovered)) {
       // 重置当前回合的下注
       this.resetBets();
 
-      // Deal all remaining community cards
+      // 发完所有剩余公共牌
       while (this.currentRound !== "river") {
         switch (this.currentRound) {
           case "preflop":
@@ -625,7 +639,7 @@ export default class Game {
             break;
         }
       }
-      // End the hand immediately
+      // 结束本手牌（分配底池等）
       this.endHand();
       return;
     }
@@ -758,65 +772,122 @@ export default class Game {
 
   // calculate all pots (main pot and side pots)
   calculatePots() {
+    // 先判断是否所有玩家都 all-in 或 fold，或 round 已结束
+    const allPlayersAllInOrFolded = this.inHandPlayers.every(
+      (p) => p.isAllIn || p.isFolded
+    );
+    const roundEnded = this.shouldEndRound() || allPlayersAllInOrFolded;
+
+    // 如果还在回合中（没有结束），就直接不拆分
+    if (!roundEnded) {
+      this.mainPot = this.pot;
+      this.sidePots = [];
+      this.pots = [
+        {
+          amount: this.pot,
+          players: this.inHandPlayers.map((player) => ({
+            id: player.id,
+            name: player.name,
+            hand: player.hand,
+          })),
+          isMainPot: true,
+        },
+      ];
+      return;
+    }
+
+    // ====== 回合结束后，再进行正式的边池拆分 ======
+    // 这里把原先的 activePlayers 过滤条件去掉，改为直接对 inHandPlayers 做 sort。
     const activePlayers = this.inHandPlayers
       .map((player) => ({
         id: player.id,
         name: player.name,
         totalBet: player.totalBet,
-        cards: player.hand,
+        hand: player.hand,
       }))
       .sort((a, b) => a.totalBet - b.totalBet);
 
-    // 检查是否所有玩家下注相等
-    const allBetsEqual = activePlayers.every(
-      (p) => p.totalBet === activePlayers[0].totalBet
-    );
-
-    // 如果所有玩家下注相等，不需要创建边池
-    if (allBetsEqual) {
-      // 清空之前可能存在的边池信息
+    // 如果没有玩家，直接返回
+    if (activePlayers.length === 0) {
       this.mainPot = 0;
       this.sidePots = [];
       this.pots = [];
       return;
     }
 
-    // 否则，计算主池和边池
+    // 找出最小和最大下注金额
+    const minBet = activePlayers[0].totalBet;
+    const maxBet = activePlayers[activePlayers.length - 1].totalBet;
+
+    // 如果所有玩家下注相等，不需要创建边池
+    if (minBet === maxBet) {
+      this.mainPot = this.pot;
+      this.sidePots = [];
+      this.pots = [
+        {
+          amount: this.pot,
+          players: activePlayers,
+          isMainPot: true,
+        },
+      ];
+      return;
+    }
+
+    // 否则，需要计算主池和边池
     let pots = [];
     let processedBet = 0;
+    let remainingPlayers = [...activePlayers];
+    let totalProcessed = 0; // 添加这个变量来跟踪已处理的总金额
 
-    while (activePlayers.length > 0) {
-      const currentPlayer = activePlayers[0];
-      const currentBet = currentPlayer.totalBet;
+    while (remainingPlayers.length > 0) {
+      const currentBet = remainingPlayers[0].totalBet;
       const betDifference = currentBet - processedBet;
 
       if (betDifference > 0) {
-        const potAmount = betDifference * activePlayers.length;
-        const pot = {
-          amount: potAmount,
-          players: activePlayers.map((p) => ({
-            id: p.id,
-            name: p.name,
-            cards: p.cards,
-          })),
-        };
-        pots.push(pot);
+        // 修改计算方式
+        const potAmount = betDifference * remainingPlayers.length;
+        totalProcessed += potAmount;
+
+        // 只有当真正需要边池时才创建
+        if (
+          currentBet < maxBet ||
+          remainingPlayers.length < activePlayers.length
+        ) {
+          const pot = {
+            amount: potAmount,
+            players: remainingPlayers.map((p) => ({
+              id: p.id,
+              name: p.name,
+              hand: p.hand,
+            })),
+            isMainPot: pots.length === 0,
+          };
+          pots.push(pot);
+        }
       }
 
       processedBet = currentBet;
-      activePlayers.shift();
+      remainingPlayers.shift();
     }
 
-    // 更新主池和边池
+    // 如果没有创建任何池，说明所有玩家下注实际上是相等的
+    if (pots.length === 0) {
+      this.mainPot = this.pot;
+      this.sidePots = [];
+      this.pots = [
+        {
+          amount: this.pot,
+          players: activePlayers,
+          isMainPot: true,
+        },
+      ];
+      return;
+    }
+
+    // 更新游戏状态
     this.mainPot = pots[0]?.amount || 0;
     this.sidePots = pots.slice(1);
-
-    // 记录每个池的玩家，用于显示
-    this.pots = pots.map((pot, index) => ({
-      amount: pot.amount,
-      players: pot.players,
-      isMainPot: index === 0,
-    }));
+    this.pots = pots;
   }
 
   // distribute pots
