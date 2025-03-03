@@ -198,6 +198,18 @@ export default class Game {
 
   // next round
   nextRound() {
+    // 如果只剩一个玩家，直接结束这手牌
+    if (this.activePlayers.length === 1) {
+      this.endHandWithOnePlayer();
+      return;
+    }
+
+    // 计算底池
+    this.calculatePots();
+
+    // 重置当前回合的下注
+    this.resetBets();
+
     switch (this.currentRound) {
       case "preflop":
         this.currentRound = "flop";
@@ -215,8 +227,6 @@ export default class Game {
         this.endHand(); // directly call endHand
         return;
     }
-    // reset current round bets
-    this.resetBets();
     // start new betting round
     this.startBettingRound();
   }
@@ -313,6 +323,12 @@ export default class Game {
 
   // end hand
   endHand() {
+    // 计算底池
+    this.calculatePots();
+
+    // 分发底池
+    this.distributePots();
+
     // if ended before river (only one player left)
     if (this.inHandPlayers.length === 1) {
       const winner = this.inHandPlayers[0];
@@ -347,10 +363,6 @@ export default class Game {
     playersToShow.forEach((player) => {
       this.showCards(player.id, true); // force show cards
     });
-
-    // calculate winners and distribute pots
-    this.calculatePots();
-    this.distributePots();
 
     // check players status
     this.checkPlayersStatus();
@@ -572,17 +584,30 @@ export default class Game {
 
   // move to next player
   moveToNextPlayer() {
-    // clear current timeout
     if (this.actionTimeout) {
       clearTimeout(this.actionTimeout);
     }
 
-    // 1) First check: are all remaining players all-in?
+    // 1) First check: should we deal all cards?
     const stillInPlayers = this.inHandPlayers.filter((p) => !p.isFolded);
+
+    // 检查是否满足以下任一条件：
+    // a) 所有玩家都 all-in
+    // b) 除了一个玩家外都 all-in，且该玩家已经 call 了所有下注
     const allAllIn =
       stillInPlayers.length > 1 && stillInPlayers.every((p) => p.isAllIn);
+    const allButOneAllIn =
+      stillInPlayers.length > 1 &&
+      stillInPlayers.filter((p) => p.isAllIn).length ===
+        stillInPlayers.length - 1 &&
+      stillInPlayers.every(
+        (p) => p.isAllIn || p.currentBet === this.currentRoundMaxBet
+      );
 
-    if (allAllIn) {
+    if (allAllIn || allButOneAllIn) {
+      // 重置当前回合的下注
+      this.resetBets();
+
       // Deal all remaining community cards
       while (this.currentRound !== "river") {
         switch (this.currentRound) {
@@ -642,7 +667,6 @@ export default class Game {
           break;
         case "call":
           this.handleBet(playerId, this.currentRoundMaxBet - player.currentBet);
-          this.calculatePots();
           break;
         case "bet":
           if (this.currentRoundMaxBet > 0) {
@@ -665,7 +689,6 @@ export default class Game {
             this.lastRaisePlayer = player.position;
             this.currentRoundMaxBet = player.currentBet;
           }
-          this.calculatePots();
           break;
         case "showCards":
           this.showCards(playerId);
@@ -744,32 +767,30 @@ export default class Game {
       }))
       .sort((a, b) => a.totalBet - b.totalBet);
 
-    console.log(
-      "Active players and their bets:",
-      activePlayers.map((p) => ({
-        name: p.name,
-        totalBet: p.totalBet,
-      }))
+    // 检查是否所有玩家下注相等
+    const allBetsEqual = activePlayers.every(
+      (p) => p.totalBet === activePlayers[0].totalBet
     );
 
-    // 如果所有玩家下注相等，只创建一个主池
-    if (activePlayers.every((p) => p.totalBet === activePlayers[0].totalBet)) {
-      this.mainPot = this.pot;
+    // 如果所有玩家下注相等，不需要创建边池
+    if (allBetsEqual) {
+      // 清空之前可能存在的边池信息
+      this.mainPot = 0;
       this.sidePots = [];
+      this.pots = [];
       return;
     }
 
+    // 否则，计算主池和边池
     let pots = [];
     let processedBet = 0;
 
-    // 为每个不同的下注金额创建一个底池
     while (activePlayers.length > 0) {
       const currentPlayer = activePlayers[0];
       const currentBet = currentPlayer.totalBet;
       const betDifference = currentBet - processedBet;
 
       if (betDifference > 0) {
-        // 创建新的底池
         const potAmount = betDifference * activePlayers.length;
         const pot = {
           amount: potAmount,
@@ -790,7 +811,7 @@ export default class Game {
     this.mainPot = pots[0]?.amount || 0;
     this.sidePots = pots.slice(1);
 
-    // record each pot's players, for display
+    // 记录每个池的玩家，用于显示
     this.pots = pots.map((pot, index) => ({
       amount: pot.amount,
       players: pot.players,
@@ -800,45 +821,68 @@ export default class Game {
 
   // distribute pots
   distributePots() {
-    if (this.mainPot > 0) {
-      const mainPotWinners = getWinner(
-        this.pots[0].players,
-        this.communityCards
-      );
-      const mainPotShare = Math.floor(this.mainPot / mainPotWinners.length);
-      mainPotWinners.forEach((winner) => {
+    // 检查是否有边池
+    const hasSidePots = this.sidePots && this.sidePots.length > 0;
+
+    if (!hasSidePots) {
+      // 简单情况：没有边池，直接分发总底池
+      const winners = getWinner(this.inHandPlayers, this.communityCards);
+      const potShare = Math.floor(this.pot / winners.length);
+
+      winners.forEach((winner) => {
         const player = this.findPlayerById(winner.id);
         if (player) {
-          player.chips += mainPotShare;
+          player.chips += potShare;
           this.addMessage(
-            `${player.name} wins ${mainPotShare} from main pot with ${winner.descr}`
+            `${player.name} wins ${potShare} with ${winner.descr}`
           );
         }
       });
-    }
+    } else {
+      // 复杂情况：有边池，分别处理主池和边池
+      if (this.mainPot > 0) {
+        const mainPotWinners = getWinner(
+          this.pots[0].players,
+          this.communityCards
+        );
+        const mainPotShare = Math.floor(this.mainPot / mainPotWinners.length);
 
-    // 分配每个边池
-    this.sidePots.forEach((pot, index) => {
-      if (pot.amount > 0) {
-        const potWinners = getWinner(pot.players, this.communityCards);
-        const potShare = Math.floor(pot.amount / potWinners.length);
-        potWinners.forEach((winner) => {
+        mainPotWinners.forEach((winner) => {
           const player = this.findPlayerById(winner.id);
           if (player) {
-            player.chips += potShare;
+            player.chips += mainPotShare;
             this.addMessage(
-              `${player.name} wins ${potShare} from side pot ${
-                index + 1
-              } with ${winner.descr}`
+              `${player.name} wins ${mainPotShare} from main pot with ${winner.descr}`
             );
           }
         });
       }
-    });
+
+      // 分配每个边池
+      this.sidePots.forEach((pot, index) => {
+        if (pot.amount > 0) {
+          const potWinners = getWinner(pot.players, this.communityCards);
+          const potShare = Math.floor(pot.amount / potWinners.length);
+
+          potWinners.forEach((winner) => {
+            const player = this.findPlayerById(winner.id);
+            if (player) {
+              player.chips += potShare;
+              this.addMessage(
+                `${player.name} wins ${potShare} from side pot ${
+                  index + 1
+                } with ${winner.descr}`
+              );
+            }
+          });
+        }
+      });
+    }
 
     // 清空所有池
     this.mainPot = 0;
     this.sidePots = [];
+    this.pots = [];
     this.pot = 0;
   }
 
