@@ -899,6 +899,7 @@ export default class Game {
 
   // distribute pots
   distributePots() {
+    console.log("hasSidePots", this.sidePots);
     // 检查是否有边池
     const hasSidePots = this.sidePots && this.sidePots.length > 0;
 

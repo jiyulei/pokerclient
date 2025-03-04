@@ -446,6 +446,71 @@ describe("Game", () => {
 
             expect(totalFinalChips).toBe(totalInitialChips);
           });
+
+          test("Short all-in causes side pots with four players", () => {
+            game.players = [];
+            // 设置四个玩家，筹码数量各不相同
+            game.addPlayer("UTG", "p1");
+            game.players[0].chips = 30; // 最少筹码
+
+            game.addPlayer("Dealer", "p2");
+            game.players[1].chips = 60; // 中等筹码
+
+            game.addPlayer("SmallBlind", "p3");
+            game.players[2].chips = 100; // 较多筹码
+
+            game.addPlayer("BigBlind", "p4");
+            game.players[3].chips = 200; // 最多筹码
+
+            // 记录初始筹码
+            const initialChips = {};
+            game.players.forEach((player, index) => {
+              if (player && player.isActive) {
+                initialChips[`p${index + 1}`] = player.chips;
+              }
+            });
+
+            game.startGame();
+            expect(game.currentRound).toBe("preflop");
+
+            // UTG 全下 (30筹码)
+            game.handlePlayerAction("p1", "allin");
+
+            // Dealer 全下 (60筹码)
+            game.handlePlayerAction("p2", "allin");
+
+            // SmallBlind 加注到 100 (已下注10，再下90)
+            game.handlePlayerAction("p3", "allin");
+
+            // BigBlind 跟注 (已下注20，再下80)
+            game.handlePlayerAction("p4", "call");
+
+            expect(["river", "preflop"]).toContain(game.currentRound);
+
+            // 检查筹码总数保持不变
+            const finalChips = {};
+            game.players.forEach((player, index) => {
+              if (player && player.isActive) {
+                finalChips[`p${index + 1}`] = player.chips;
+              }
+            });
+
+            const totalInitialChips = Object.values(initialChips).reduce(
+              (a, b) => a + b,
+              0
+            );
+            const totalFinalChips = Object.values(finalChips).reduce(
+              (a, b) => a + b,
+              0
+            );
+
+            expect(totalFinalChips).toBe(totalInitialChips);
+
+            // 等待新一轮开始
+            jest.advanceTimersByTime(3000);
+
+            expect(game.currentRound).toBe("preflop");
+          });
         });
       });
     });
