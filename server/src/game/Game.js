@@ -80,8 +80,7 @@ export default class Game {
     if (this.players.length < 2) {
       throw new Error("Need at least 2 players to start the game");
     }
-
-    // check if each player has enough chips
+    //TODO: check if each player has enough chips
     const insufficientChipsPlayers = this.players.filter(
       (player) => player.chips < this.bigBlind
     );
@@ -680,6 +679,13 @@ export default class Game {
           this.handleCheck(playerId);
           break;
         case "call":
+          // 添加检查：如果玩家筹码不足以跟注，抛出错误
+          const toCall = this.currentRoundMaxBet - player.currentBet;
+          if (player.chips < toCall) {
+            throw new Error(
+              "Not enough chips to call, please go all-in instead"
+            );
+          }
           this.handleBet(playerId, this.currentRoundMaxBet - player.currentBet);
           break;
         case "bet":
@@ -754,11 +760,12 @@ export default class Game {
         // if player has enough chips, can call
         if (player.chips >= toCall) {
           actions.push("call");
+          // if player has enough chips, can raise
+          if (player.chips > toCall) {
+            actions.push("raise");
+          }
         }
-        // if player has enough chips, can raise
-        if (player.chips > toCall) {
-          actions.push("raise");
-        }
+        // 如果筹码不足以跟注，不提供call选项，只能all-in
       }
     }
 
