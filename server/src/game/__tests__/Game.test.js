@@ -532,22 +532,78 @@ describe("Game", () => {
       });
     });
 
-    // describe("Flop action", () => {
-    //   beforeEach(() => {
-    //     game.players = [];
-    //     game.addPlayer("BigBlind", "p1");
-    //     game.addPlayer("Dealer", "p2");
-    //     game.addPlayer("SmallBlind", "p3");
-    //   });
-    //   test("Three players: call, call, check", () => {
-    //     game.startGame();
-    //     game.handlePlayerAction("p2", "call");
-    //     game.handlePlayerAction("p3", "call");
-    //     // game.handlePlayerAction("p1", "check");
-    //     game.dealFlop();
-    //     expect(game.currentRound).toBe("preflop");
-    //   });
-    // });
+    describe("Flop action", () => {
+      beforeEach(() => {
+        game.players = [];
+        game.addPlayer("BigBlind", "p1");
+        game.addPlayer("Dealer", "p2");
+        game.addPlayer("SmallBlind", "p3");
+      });
+      test("Three players: after preflop, players check, call, call, call, then proceed to turn. ", () => {
+        // ------------- Preflop -------------
+        game.startGame();
+
+        expect(game.currentRound).toBe("preflop");
+        game.handlePlayerAction("p2", "call");
+        game.handlePlayerAction("p3", "call");
+        game.handlePlayerAction("p1", "check");
+
+        // ------------- Flop -------------
+        expect(game.currentRound).toBe("flop");
+        expect(game.pot).toBe(60);
+
+        // small blind should have check, bet, fold, allin, but not call or raise
+        expect(game.getAvailableActions("p3")).toContain("check");
+        expect(game.getAvailableActions("p3")).toContain("bet");
+        expect(game.getAvailableActions("p3")).toContain("fold");
+        expect(game.getAvailableActions("p3")).toContain("allin");
+        expect(game.getAvailableActions("p3")).not.toContain("call");
+        expect(game.getAvailableActions("p3")).not.toContain("raise");
+
+        // -------------- small blind check --------------
+        game.handlePlayerAction("p3", "check");
+        expect(game.pot).toBe(60);
+
+        // big blind should have check, bet, fold, allin, but not call or raise
+        expect(game.getAvailableActions("p1")).toContain("check");
+        expect(game.getAvailableActions("p1")).toContain("bet");
+        expect(game.getAvailableActions("p1")).toContain("fold");
+        expect(game.getAvailableActions("p1")).toContain("allin");
+        expect(game.getAvailableActions("p1")).not.toContain("call");
+        expect(game.getAvailableActions("p1")).not.toContain("raise");
+
+        // -------------- big blind bet 10 --------------
+        game.handlePlayerAction("p1", "bet", 10);
+        expect(game.pot).toBe(70);
+
+        // dealer should have call, fold, raise, allin, but not bet or check
+        expect(game.getAvailableActions("p2")).toContain("fold");
+        expect(game.getAvailableActions("p2")).toContain("call");
+        expect(game.getAvailableActions("p2")).toContain("raise");
+        expect(game.getAvailableActions("p2")).toContain("allin");
+        expect(game.getAvailableActions("p2")).not.toContain("bet");
+        expect(game.getAvailableActions("p2")).not.toContain("check");
+
+        // -------------- dealer call --------------
+        game.handlePlayerAction("p2", "call");
+        expect(game.pot).toBe(80);
+
+        // small blind should have fold, call, raise, allin, but not check or bet
+        expect(game.getAvailableActions("p3")).toContain("fold");
+        expect(game.getAvailableActions("p3")).toContain("call");
+        expect(game.getAvailableActions("p3")).toContain("raise");
+        expect(game.getAvailableActions("p3")).toContain("allin");
+        expect(game.getAvailableActions("p3")).not.toContain("check");
+        expect(game.getAvailableActions("p3")).not.toContain("bet");
+
+        // -------------- small blind call --------------
+        game.handlePlayerAction("p3", "call");
+        expect(game.pot).toBe(90);
+
+        // 进入turn
+        expect(game.currentRound).toBe("turn");
+      });
+    });
 
     // describe("All-in and Side Pot Formation", () => {
     //   test("When a player goes all-in and others continue betting, side pots are formed", () => {
