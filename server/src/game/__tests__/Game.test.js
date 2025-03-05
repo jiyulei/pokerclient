@@ -538,8 +538,6 @@ describe("Game", () => {
         game.addPlayer("BigBlind", "p1");
         game.addPlayer("Dealer", "p2");
         game.addPlayer("SmallBlind", "p3");
-      });
-      test("Three players: after preflop, players check, call, call, call, then proceed to turn. ", () => {
         // ------------- Preflop -------------
         game.startGame();
 
@@ -547,7 +545,9 @@ describe("Game", () => {
         game.handlePlayerAction("p2", "call");
         game.handlePlayerAction("p3", "call");
         game.handlePlayerAction("p1", "check");
+      });
 
+      test("Three players: players check, call, call, call, then proceed to turn. ", () => {
         // ------------- Flop -------------
         expect(game.currentRound).toBe("flop");
         expect(game.pot).toBe(60);
@@ -603,33 +603,67 @@ describe("Game", () => {
         // 进入turn
         expect(game.currentRound).toBe("turn");
       });
+
+      test("Three players: players bet, fold, call, then proceed to turn. ", () => {
+        // ------------- Flop -------------
+        expect(game.currentRound).toBe("flop");
+        expect(game.pot).toBe(60);
+
+        // -------------- small blind bet --------------
+        game.handlePlayerAction("p3", "bet", 10);
+
+        expect(game.pot).toBe(70);
+        expect(game.activePlayers.length).toBe(3);
+
+        // -------------- big blind call --------------
+        game.handlePlayerAction("p1", "fold");
+
+        expect(game.pot).toBe(70);
+        expect(game.activePlayers.length).toBe(2);
+        // -------------- dealer call --------------
+        game.handlePlayerAction("p2", "call");
+
+        expect(game.pot).toBe(80);
+
+        // -------------- turn --------------
+        expect(game.currentRound).toBe("turn");
+        expect(game.activePlayers.length).toBe(2);
+      });
+
+      describe("Mutilple raise", () => {
+        test("Three players: players bet, raise, raise, call, call, then proceed to turn. ", () => {
+          // ------------- Flop -------------
+          expect(game.currentRound).toBe("flop");
+          expect(game.pot).toBe(60);
+
+          // -------------- small blind bet --------------
+          game.handlePlayerAction("p3", "bet", 10);
+          expect(game.pot).toBe(70);
+
+          // -------------- big blind raise --------------
+          game.handlePlayerAction("p1", "raise", 20);
+          expect(game.pot).toBe(90);
+          expect(game.currentRoundMaxBet).toBe(20);
+
+          //------------ dealer raise --------------
+          game.handlePlayerAction("p2", "raise", 40);
+          expect(game.pot).toBe(130);
+          expect(game.currentRoundMaxBet).toBe(40);
+
+          //------------ small blind call --------------
+          game.handlePlayerAction("p3", "call");
+          expect(game.pot).toBe(160);
+
+          //------------ big blind call --------------
+          game.handlePlayerAction("p1", "call");
+          expect(game.pot).toBe(180);
+
+          // ---------- turn --------------
+          expect(game.currentRound).toBe("turn");
+          expect(game.activePlayers.length).toBe(3);
+        });
+      });
     });
-
-    // describe("All-in and Side Pot Formation", () => {
-    //   test("When a player goes all-in and others continue betting, side pots are formed", () => {
-    //     // 调整玩家筹码：让 Player1 筹码较少
-    //     game.players = []; // 重置玩家
-    //     game.addPlayer("Player1", "p1");
-    //     game.addPlayer("Player2", "p2");
-    //     game.addPlayer("Player3", "p3");
-    //     game.players[0].chips = 50; // Player1只有50
-    //     // Player2和Player3保持默认筹码（1000）
-
-    //     game.startGame();
-
-    //     // Player1 全下
-    //     game.handlePlayerAction("p1", "allin");
-    //     // Player2 跟注（call）
-    //     game.handlePlayerAction("p2", "call");
-    //     // Player3 raise（比如 raise 到 80，总下注80）
-    //     game.handlePlayerAction("p3", "raise", 80);
-
-    //     // 计算底池
-    //     game.calculatePots();
-    //     // 断言 sidePots 存在（至少1个 side pot）
-    //     expect(game.sidePots.length).toBeGreaterThan(0);
-    //   });
-    // });
 
     // describe("Folding on Turn/River", () => {
     //   test("A player folds on turn and game proceeds correctly", () => {
