@@ -132,34 +132,49 @@ describe("Game", () => {
       });
 
       test("Players: call, call then proceed to flop", () => {
+        game.players = [];
+        game.addPlayer("BigBlind", "p1");
+        game.addPlayer("Dealer", "p2");
+        game.addPlayer("SmallBlind", "p3");
         game.startGame();
-        const p1 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p1, "call");
+
+        game.handlePlayerAction("p2", "call");
 
         expect(game.currentRoundMaxBet).toBe(20);
 
-        const p2 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p2, "call");
+        game.handlePlayerAction("p3", "call");
 
-        expect(game.currentRoundMaxBet).toBe(0);
+        // 此时应该仍然在preflop轮，并且轮到大盲行动
+        expect(game.currentRound).toBe("preflop");
+        expect(game.currentPlayer).toBe(game.bigBlindPos);
+
+        // 大盲选择check
+        game.handlePlayerAction("p1", "check");
+
+        // 现在应该进入flop
         expect(game.currentRound).toBe("flop");
-        expect(game.pot).toBe(60);
+        expect(game.pot).toBe(60); // 10(SB) + 20(BB) + 20(Dealer call) + 10(SB call)
       });
 
-      test("Players: fold, call, then proceed to flop", () => {
+      test("Players: fold, call, check, then proceed to flop", () => {
+        game.players = [];
+        game.addPlayer("BigBlind", "p1");
+        game.addPlayer("Dealer", "p2");
+        game.addPlayer("SmallBlind", "p3");
         game.startGame();
         expect(game.activePlayers.length).toBe(3);
 
-        const p1 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p1, "fold");
+        game.handlePlayerAction("p2", "fold");
 
         expect(game.activePlayers.length).toBe(2);
         expect(game.currentRoundMaxBet).toBe(20);
 
-        // simulate the next player to call:
-        const p2 = game.players[game.currentPlayer].id;
-        game.handlePlayerAction(p2, "call");
-        expect(game.currentRoundMaxBet).toBe(0);
+        game.handlePlayerAction("p3", "call");
+        expect(game.currentRoundMaxBet).toBe(20);
+        expect(game.currentRound).toBe("preflop");
+        expect(game.pot).toBe(40);
+
+        game.handlePlayerAction("p1", "check");
         expect(game.currentRound).toBe("flop");
         expect(game.pot).toBe(40);
       });
@@ -462,6 +477,8 @@ describe("Game", () => {
             game.addPlayer("BigBlind", "p4");
             game.players[3].chips = 200; // 最多筹码
 
+            console.log("game.players", game.players);
+
             // 记录初始筹码
             const initialChips = {};
             game.players.forEach((player, index) => {
@@ -514,6 +531,23 @@ describe("Game", () => {
         });
       });
     });
+
+    // describe("Flop action", () => {
+    //   beforeEach(() => {
+    //     game.players = [];
+    //     game.addPlayer("BigBlind", "p1");
+    //     game.addPlayer("Dealer", "p2");
+    //     game.addPlayer("SmallBlind", "p3");
+    //   });
+    //   test("Three players: call, call, check", () => {
+    //     game.startGame();
+    //     game.handlePlayerAction("p2", "call");
+    //     game.handlePlayerAction("p3", "call");
+    //     // game.handlePlayerAction("p1", "check");
+    //     game.dealFlop();
+    //     expect(game.currentRound).toBe("preflop");
+    //   });
+    // });
 
     // describe("All-in and Side Pot Formation", () => {
     //   test("When a player goes all-in and others continue betting, side pots are formed", () => {

@@ -204,6 +204,11 @@ export default class Game {
 
   // next round
   nextRound() {
+    // 在preflop轮，如果大盲还没有行动过，不应该进入下一轮
+    if (this.currentRound === "preflop" && !this.bigBlindHasActed) {
+      return;
+    }
+
     // 如果只剩一个玩家，直接结束这手牌
     if (this.activePlayers.length === 1) {
       this.endHandWithOnePlayer();
@@ -552,10 +557,14 @@ export default class Game {
       // set initial max bet amount
       this.currentRoundMaxBet = this.bigBlind;
       this.lastRaisePlayer = this.bigBlindPos;
+
+      // 添加标记，表示大盲尚未行动
+      this.bigBlindHasActed = false;
     } else {
       // other rounds start from small blind
       this.currentPlayer = this.smallBlindPos;
       this.lastRaisePlayer = null;
+      this.bigBlindHasActed = true; // 非preflop轮不需要考虑大盲特权
     }
 
     this.waitForPlayerAction();
@@ -563,8 +572,16 @@ export default class Game {
 
   // wait for player action
   waitForPlayerAction() {
-    // if all players have acted and bet equal, go to next round
-    if (this.shouldEndRound()) {
+    // 在preflop轮，如果大盲还没有行动过，不应该结束回合
+    if (
+      this.currentRound === "preflop" &&
+      !this.bigBlindHasActed &&
+      this.currentPlayer === this.bigBlindPos
+    ) {
+      // 大盲需要行动，不检查是否结束回合
+    }
+    // 否则，检查是否所有玩家都已行动且下注相等，如果是则进入下一轮
+    else if (this.shouldEndRound()) {
       this.nextRound();
       return;
     }
@@ -647,9 +664,24 @@ export default class Game {
     do {
       this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
 
+      // 如果是preflop轮，且当前玩家是大盲，标记大盲已经行动
+      if (
+        this.currentRound === "preflop" &&
+        this.currentPlayer === this.bigBlindPos
+      ) {
+        this.bigBlindHasActed = true;
+      }
+
+      // 检查是否回到了最后一个加注的玩家
       if (this.currentPlayer === this.lastRaisePlayer) {
         const lastRaisePlayer = this.players[this.lastRaisePlayer];
-        if (lastRaisePlayer.isAllIn || this.shouldEndRound()) {
+
+        // 在preflop轮，如果大盲还没有行动过，即使回到了最后加注的玩家，也不结束回合
+        if (this.currentRound === "preflop" && !this.bigBlindHasActed) {
+          // 继续循环，让大盲有机会行动
+        }
+        // 否则，如果最后加注的玩家已经全下或者应该结束回合，则进入下一轮
+        else if (lastRaisePlayer.isAllIn || this.shouldEndRound()) {
           this.nextRound();
           return;
         }
@@ -987,6 +1019,19 @@ export default class Game {
   shouldEndRound() {
     // if there is no last raising player, the round is just starting
     if (this.lastRaisePlayer === null) {
+      return false;
+    }
+
+    // 在preflop轮，如果大盲还没有行动过，不应该结束回合
+    if (this.currentRound === "preflop" && !this.bigBlindHasActed) {
+      return false;
+    }
+
+    // 检查当前玩家是否是大盲，如果是且在preflop轮，需要给他行动机会
+    if (
+      this.currentRound === "preflop" &&
+      this.currentPlayer === this.bigBlindPos
+    ) {
       return false;
     }
 
