@@ -665,7 +665,7 @@ describe("Game", () => {
       });
 
       describe("Mutiple fold", () => {
-        test.only("Three players: players bet, fold, fold, then proceed to river. ", () => {
+        test("Three players: players bet, fold, fold, then last player win. ", () => {
           expect(game.players[2].chips).toBe(980);
           // ------------- Flop -------------
           expect(game.currentRound).toBe("flop");
