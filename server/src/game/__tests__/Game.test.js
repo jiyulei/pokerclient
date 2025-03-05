@@ -663,6 +663,40 @@ describe("Game", () => {
           expect(game.activePlayers.length).toBe(3);
         });
       });
+
+      describe("Mutiple fold", () => {
+        test.only("Three players: players bet, fold, fold, then proceed to river. ", () => {
+          expect(game.players[2].chips).toBe(980);
+          // ------------- Flop -------------
+          expect(game.currentRound).toBe("flop");
+          expect(game.pot).toBe(60);
+
+          // -------------- small blind fold --------------
+
+          game.handlePlayerAction("p3", "bet", 10);
+
+          expect(game.pot).toBe(70);
+          expect(game.activePlayers.length).toBe(3);
+
+          // -------------- big blind fold --------------
+          game.handlePlayerAction("p1", "fold");
+
+          expect(game.pot).toBe(70);
+          expect(game.activePlayers.length).toBe(2);
+
+          // -------------- dealer call --------------
+          game.handlePlayerAction("p2", "fold");
+
+          expect(game.activePlayers.length).toBe(1);
+          expect(game.players[2].chips).toBe(1040);
+          // after delay, verify the new game has started
+          jest.advanceTimersByTime(3000);
+
+          expect(game.round).toBe(2); // second round
+          expect(game.currentRound).toBe("preflop");
+          expect(game.pot).toBe(30);
+        });
+      });
     });
 
     // describe("Folding on Turn/River", () => {
