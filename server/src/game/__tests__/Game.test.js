@@ -697,6 +697,57 @@ describe("Game", () => {
           expect(game.pot).toBe(30);
         });
       });
+
+      describe("All-in and side Pots formation", () => {
+        test("Three players: players bet, allin, allin. ", () => {
+          const initialChipsAfterPreflop = {};
+          game.players.forEach((player, index) => {
+            if (player && player.isActive) {
+              initialChipsAfterPreflop[`p${index + 1}`] = player.chips;
+            }
+          });
+
+          const preflopPot = game.pot;
+          // ------------- Flop -------------
+          expect(game.currentRound).toBe("flop");
+          expect(game.pot).toBe(60);
+
+          // -------------- small blind allin --------------
+          game.handlePlayerAction("p3", "allin");
+          expect(game.pot).toBe(1040);
+
+          // -------------- big blind allin --------------
+          game.handlePlayerAction("p1", "call");
+          expect(game.pot).toBe(2020);
+
+          // -------------- dealer allin --------------
+          game.handlePlayerAction("p2", "allin");
+
+          expect(game.sidePots.length).toBe(0);
+          // 1.river: 2 players left 2: preflop: 2 players eliminated(endGame)
+          expect(["river", "preflop"]).toContain(game.currentRound);
+          // check chips
+          // 因为一局结束pot变量被重置为0，所以需要用总筹码来验证
+          const finalChips = {};
+          game.players.forEach((player, index) => {
+            if (player && player.isActive) {
+              finalChips[`p${index + 1}`] = player.chips;
+            }
+          });
+
+          const totalInitialChipsAfterPreflop = Object.values(
+            initialChipsAfterPreflop
+          ).reduce((a, b) => a + b, 0);
+          const totalFinalChips = Object.values(finalChips).reduce(
+            (a, b) => a + b,
+            0
+          );
+
+          expect(totalFinalChips).toBe(
+            totalInitialChipsAfterPreflop + preflopPot
+          );
+        });
+      });
     });
 
     // describe("Folding on Turn/River", () => {
