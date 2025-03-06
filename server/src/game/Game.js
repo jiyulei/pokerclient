@@ -422,7 +422,7 @@ export default class Game {
     }
 
     console.log(
-      `handleBet: player ${playerId} betting ${amount}, current pot: ${this.pot}`
+      `handleBet: player ${playerId} betting ${amount}, current pot: ${this.pot}, currentRound: ${this.currentRound}`
     );
 
     // player bet
@@ -436,6 +436,53 @@ export default class Game {
       this.currentRoundMaxBet,
       player.currentBet
     );
+
+    // 记录玩家已经行动过
+    player.hasActed = true;
+
+    // 在turn和river轮中，设置lastRaisePlayer为当前玩家
+    if (this.currentRound === "turn" || this.currentRound === "river") {
+      console.log(
+        `Setting lastRaisePlayer to ${player.position} after bet in ${this.currentRound} round`
+      );
+      this.lastRaisePlayer = player.position;
+
+      // 在河牌轮中，如果是跟注操作，检查是否所有玩家都已经行动过
+      if (this.currentRound === "river") {
+        // 获取所有活跃玩家（未弃牌且未全下）
+        const activePlayers = this.players.filter(
+          (p) => p.isActive && !p.isFolded && !p.isAllIn
+        );
+
+        // 检查是否所有玩家的下注都相等
+        const allBetsEqual = activePlayers.every(
+          (p) => p.currentBet === this.currentRoundMaxBet
+        );
+
+        // 检查是否所有玩家都已经行动过
+        const allPlayersHaveActed = activePlayers.every((p) => {
+          return p.hasActed || p.currentBet > 0;
+        });
+
+        console.log(
+          `River round bet check: allBetsEqual=${allBetsEqual}, allPlayersHaveActed=${allPlayersHaveActed}, activePlayers=${activePlayers.length}`
+        );
+
+        // 如果是跟注操作，检查是否所有玩家都已经行动过且下注相等
+        if (player.currentBet === this.currentRoundMaxBet && allBetsEqual) {
+          // 检查是否所有玩家都已经行动过
+          const allPlayersActed = this.players
+            .filter((p) => p.isActive && !p.isFolded && !p.isAllIn)
+            .every((p) => p.position === player.position || p.hasActed);
+
+          if (allPlayersActed) {
+            console.log(
+              "All players have acted and bets are equal in river round, will end hand after moveToNextPlayer"
+            );
+          }
+        }
+      }
+    }
 
     // if player is all in, add message notification
     if (player.isAllIn) {
@@ -493,6 +540,33 @@ export default class Game {
       this.lastRaisePlayer = player.position;
     }
 
+    // 在turn轮中，记录哪些玩家已经check过
+    if (this.currentRound === "turn") {
+      console.log(
+        `Player ${player.name} (position ${player.position}) has checked in turn round`
+      );
+
+      // 检查是否所有活跃玩家都已经check过
+      const activePlayers = this.players.filter(
+        (p) => p.isActive && !p.isFolded && !p.isAllIn
+      );
+
+      const allPlayersChecked = activePlayers.every((p) => p.hasChecked);
+
+      if (allPlayersChecked) {
+        console.log("All players have checked in turn round");
+      } else {
+        console.log("Not all players have checked in turn round yet");
+
+        // 打印出哪些玩家还没有check
+        const notCheckedPlayers = activePlayers.filter((p) => !p.hasChecked);
+        console.log(
+          "Players who haven't checked yet:",
+          notCheckedPlayers.map((p) => `${p.name} (position ${p.position})`)
+        );
+      }
+    }
+
     // 在river轮中，记录哪些玩家已经check过
     if (this.currentRound === "river") {
       console.log(
@@ -520,6 +594,7 @@ export default class Game {
       }
     }
 
+    // 通知所有玩家该玩家check了
     this.addMessage(`${player.name} checks`);
   }
 
@@ -716,7 +791,7 @@ export default class Game {
     // 更新活跃玩家列表
     this.updateActivePlayers();
 
-    // 如果只剩一个活跃玩家，结束本手牌
+    // 如果只剩一个玩家在游戏中（其他都弃牌了），结束本手牌
     if (this.inHandPlayers.length === 1) {
       console.log("Only one active player left, ending hand with one player");
       this.endHandWithOnePlayer();
@@ -765,6 +840,44 @@ export default class Game {
       currentPlayer: this.currentPlayer,
       bigBlindPos: this.bigBlindPos,
     });
+
+    // 在河牌轮中，检查是否所有活跃玩家的下注都相等，如果是则结束游戏
+    if (this.currentRound === "river") {
+      // 获取所有活跃玩家（未弃牌且未全下）
+      const activePlayers = this.players.filter(
+        (p) => p.isActive && !p.isFolded && !p.isAllIn
+      );
+
+      // 检查是否所有活跃玩家的下注都相等
+      const allBetsEqual = activePlayers.every(
+        (p) => p.currentBet === this.currentRoundMaxBet
+      );
+
+      // 检查是否所有活跃玩家都已经行动过
+      const allPlayersHaveActed = activePlayers.every(
+        (p) => p.hasActed || p.hasChecked || p.currentBet > 0
+      );
+
+      // 只有当所有玩家都已经行动过且下注相等时，才结束游戏
+      if (allBetsEqual && allPlayersHaveActed) {
+        // 如果是下注/跟注的情况，直接结束
+        if (this.currentRoundMaxBet > 0) {
+          console.log(
+            "All active players have bet equally in river round, ending hand"
+          );
+          this.endHand();
+          return;
+        }
+
+        // 如果是check的情况，检查是否所有玩家都已经check
+        const allPlayersChecked = activePlayers.every((p) => p.hasChecked);
+        if (allPlayersChecked) {
+          console.log("All players have checked in river round, ending hand");
+          this.endHand();
+          return;
+        }
+      }
+    }
 
     // 只有在以下情况才直接发完所有牌：
     // 1. 所有玩家都全下，或
@@ -837,8 +950,50 @@ export default class Game {
       return;
     }
 
-    // 在river轮中，我们需要确保所有玩家都有机会行动
-    if (this.currentRound === "river") {
+    // 检查是否所有玩家都已行动且下注相等
+    if (this.shouldEndRound()) {
+      // 如果当前是river轮，结束游戏
+      if (this.currentRound === "river") {
+        console.log("River round ended, ending hand");
+        this.endHand();
+        return;
+      }
+      // 如果当前是turn轮，进入river轮
+      else if (this.currentRound === "turn") {
+        console.log("Turn round ended, proceeding to river");
+        this.nextRound();
+        return;
+      }
+      // 其他情况，进入下一轮
+      else {
+        this.nextRound();
+        return;
+      }
+    }
+
+    // 在turn轮中，检查是否所有活跃玩家都已经下注且下注相等
+    if (this.currentRound === "turn") {
+      const activePlayers = this.players.filter(
+        (p) => p.isActive && !p.isFolded && !p.isAllIn
+      );
+
+      // 检查是否所有活跃玩家的下注都相等且不为0
+      const allBetsEqualAndNotZero = activePlayers.every(
+        (p) => p.currentBet === this.currentRoundMaxBet && p.currentBet > 0
+      );
+
+      // 如果所有活跃玩家都已经下注且下注相等，进入river轮
+      if (allBetsEqualAndNotZero && activePlayers.length >= 2) {
+        console.log(
+          "All active players have bet equally in turn round, proceeding to river"
+        );
+        this.nextRound();
+        return;
+      }
+    }
+
+    // 在turn轮中，我们需要确保所有玩家都有机会行动，类似于river轮
+    if (this.currentRound === "turn") {
       // 获取所有活跃玩家（未弃牌且未全下）
       const activePlayers = this.players.filter(
         (p) => p.isActive && !p.isFolded && !p.isAllIn
@@ -867,32 +1022,11 @@ export default class Game {
 
         // 如果找到了下一个应该行动的玩家
         if (loopCount < maxLoops) {
-          console.log(`Next player to act in river: ${nextPlayerPos}`);
+          console.log(`Next player to act in turn: ${nextPlayerPos}`);
           this.currentPlayer = nextPlayerPos;
           this.waitForPlayerAction();
           return;
         }
-      }
-    }
-
-    // 检查是否所有玩家都已行动且下注相等
-    if (this.shouldEndRound()) {
-      // 如果当前是river轮，结束游戏
-      if (this.currentRound === "river") {
-        console.log("River round ended, ending hand");
-        this.endHand();
-        return;
-      }
-      // 如果当前是turn轮，进入river轮
-      else if (this.currentRound === "turn") {
-        console.log("Turn round ended, proceeding to river");
-        this.nextRound();
-        return;
-      }
-      // 其他情况，进入下一轮
-      else {
-        this.nextRound();
-        return;
       }
     }
 
@@ -1310,10 +1444,35 @@ export default class Game {
         (p) => p.currentBet === this.currentRoundMaxBet || p.isAllIn
       );
 
-      // 如果所有活跃玩家都已经check，或者所有玩家的下注都相等且有人下注
-      if (allPlayersChecked && allBetsEqual) {
+      // 打印出活跃玩家的状态，帮助调试
+      console.log(
+        "River round active players:",
+        activePlayers.map((p) => ({
+          name: p.name,
+          position: p.position,
+          hasChecked: p.hasChecked,
+          currentBet: p.currentBet,
+        }))
+      );
+
+      // 如果不是所有玩家都已经check，回合不应该结束
+      if (!allPlayersChecked) {
+        console.log("Not all players have checked in river round");
+
+        // 打印出哪些玩家还没有check
+        const notCheckedPlayers = activePlayers.filter((p) => !p.hasChecked);
         console.log(
-          "All players have checked or all bets are equal in river round"
+          "Players who haven't checked yet:",
+          notCheckedPlayers.map((p) => `${p.name} (position ${p.position})`)
+        );
+
+        return false;
+      }
+
+      // 如果所有活跃玩家都已经check，且下注相等，回合应该结束
+      if (allBetsEqual && allPlayersChecked) {
+        console.log(
+          "All players have checked and all bets are equal in river round"
         );
         return true;
       }
@@ -1360,27 +1519,81 @@ export default class Game {
       return allBetsEqual && allPlayersHaveActed;
     }
 
-    // 在turn轮中，如果所有活跃玩家都已经check，应该结束回合
+    // 在turn轮中，需要确保所有活跃玩家都已经行动过，与river轮类似
     if (this.currentRound === "turn") {
       const activePlayers = this.players.filter(
         (p) => !p.isFolded && !p.isAllIn && p.isActive
       );
 
-      // 如果所有活跃玩家都已经check，或者所有玩家的下注都相等且有人下注
+      // 检查是否所有活跃玩家都已经check
       const allPlayersChecked = activePlayers.every((p) => p.hasChecked);
+
+      // 检查是否所有玩家的下注都相等
       const allBetsEqual = activePlayers.every(
         (p) => p.currentBet === this.currentRoundMaxBet || p.isAllIn
       );
 
-      if (
-        allPlayersChecked ||
-        (allBetsEqual && this.lastRaisePlayer !== null)
-      ) {
+      // 检查是否所有玩家都已经下注且下注相等
+      const allBetsEqualAndNotZero = activePlayers.every(
+        (p) => p.currentBet === this.currentRoundMaxBet && p.currentBet > 0
+      );
+
+      // 打印出活跃玩家的状态，帮助调试
+      console.log(
+        "Turn round active players:",
+        activePlayers.map((p) => ({
+          name: p.name,
+          position: p.position,
+          hasChecked: p.hasChecked,
+          currentBet: p.currentBet,
+        }))
+      );
+
+      // 如果所有活跃玩家都已经check，或者所有玩家的下注都相等且有人下注
+      if (allPlayersChecked && allBetsEqual) {
         console.log(
           "All players have checked or all bets are equal in turn round"
         );
         return true;
       }
+
+      // 如果所有活跃玩家都已经下注且下注相等且不为0，回合应该结束
+      if (allBetsEqualAndNotZero && activePlayers.length >= 2) {
+        console.log(
+          "All active players have bet equally and not zero in turn round"
+        );
+        return true;
+      }
+
+      // 如果lastRaisePlayer为null，说明还有玩家没有行动
+      if (this.lastRaisePlayer === null) {
+        console.log("In turn round, but not all players have acted yet");
+        return false;
+      }
+
+      // 检查是否所有玩家都已经行动过
+      // 在turn轮中，我们需要确保每个玩家都有机会行动
+      const allPlayersHaveActed = activePlayers.every((p) => {
+        // 如果玩家已经check或者下注，说明已经行动过
+        return p.hasChecked || p.currentBet > 0;
+      });
+
+      if (!allPlayersHaveActed) {
+        console.log("In turn round, but not all players have acted yet");
+
+        // 打印出哪些玩家还没有行动
+        const notActedPlayers = activePlayers.filter(
+          (p) => !p.hasChecked && p.currentBet === 0
+        );
+        console.log(
+          "Players who haven't acted yet:",
+          notActedPlayers.map((p) => `${p.name} (position ${p.position})`)
+        );
+
+        return false;
+      }
+
+      return allBetsEqual && allPlayersHaveActed;
     }
 
     // if there is no last raising player, the round is just starting

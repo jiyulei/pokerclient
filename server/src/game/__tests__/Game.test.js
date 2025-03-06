@@ -306,12 +306,11 @@ describe("Game", () => {
             expect(game.activePlayers.length).toBe(2);
             expect(game.currentRound).toBe("river");
 
-            // ---------- river ----------
-            expect(game.currentRound).toBe("river");
-
+            // // ---------- river ----------
             game.handlePlayerAction("p3", "check");
             game.handlePlayerAction("p2", "check");
-            // expect(game.activePlayers.length).toBe(2);
+
+            expect(game.activePlayers.length).toBe(2);
             const totalFinalChips = game.players.reduce(
               (sum, player) => sum + player.chips,
               0
@@ -791,7 +790,20 @@ describe("Game", () => {
         game.handlePlayerAction("p1", "allin");
         game.handlePlayerAction("p2", "call");
 
+        // -------------- turn --------------
         expect(game.currentRound).toBe("turn");
+        expect(game.activePlayers.length).toBe(2);
+        expect(game.sidePots.length).toBe(1);
+        console.log("activePlayers", game.activePlayers);
+        game.handlePlayerAction("p3", "check");
+        game.handlePlayerAction("p2", "check");
+
+        expect(game.currentRound).toBe("river");
+        game.handlePlayerAction("p3", "bet", 100);
+        game.handlePlayerAction("p2", "call");
+
+        jest.advanceTimersByTime(3000);
+        expect(game.currentRound).toBe("preflop");
       });
     });
 
