@@ -732,8 +732,8 @@ describe("Game", () => {
           game.handlePlayerAction("p2", "allin");
 
           expect(game.sidePots.length).toBe(0);
-          // 1.river: 2 players left 2: preflop: 2 players eliminated(endGame)
-          expect(["river", "preflop"]).toContain(game.currentRound);
+
+          expect(game.currentRound).toBe("river");
           // check chips
           // 因为一局结束pot变量被重置为0，所以需要用总筹码来验证
           const finalChips = {};
@@ -754,6 +754,10 @@ describe("Game", () => {
           expect(totalFinalChips).toBe(
             totalInitialChipsAfterPreflop + preflopPot
           );
+
+          jest.advanceTimersByTime(3000);
+          // waiting: 2 players eliminated, preflop: 2 players left
+          expect(["waiting", "preflop"]).toContain(game.currentRound);
         });
       });
     });
