@@ -554,7 +554,21 @@ describe("Game", () => {
         game.handlePlayerAction("p1", "check");
       });
 
-      test("Three players: players check, call, call, call, then proceed to turn. ", () => {
+      test("Three players: players check, check, check, then proceed to turn. ", () => {
+        // ------------- Flop -------------
+        expect(game.currentRound).toBe("flop");
+        expect(game.pot).toBe(60);
+
+        game.handlePlayerAction("p3", "check");
+        game.handlePlayerAction("p1", "check");
+        game.handlePlayerAction("p2", "check");
+
+        expect(game.currentRound).toBe("turn");
+        expect(game.activePlayers.length).toBe(3);
+        expect(game.pot).toBe(60);
+      });
+
+      test("Three players: players check, bet, call, call, then proceed to turn. ", () => {
         // ------------- Flop -------------
         expect(game.currentRound).toBe("flop");
         expect(game.pot).toBe(60);
@@ -807,42 +821,145 @@ describe("Game", () => {
       });
     });
 
-    // describe("Folding on Turn/River", () => {
-    //   test("A player folds on turn and game proceeds correctly", () => {
+    // describe("Turn action, player fold", () => {
+    //   beforeEach(() => {
+    //     game.players = [];
+    //     game.addPlayer("BigBlind", "p1");
+    //     game.addPlayer("Dealer", "p2");
+    //     game.addPlayer("SmallBlind", "p3");
+    //     // ------------- Preflop -------------
     //     game.startGame();
 
-    //     // 模拟预下注回合：所有玩家依次call/raise，使预下注结束进入flop
-    //     const p1 = game.players[game.currentPlayer].id;
-    //     game.handlePlayerAction(p1, "call");
-    //     const p2 = game.players[game.currentPlayer].id;
-    //     game.handlePlayerAction(p2, "raise", 40);
-    //     const p3 = game.players[game.currentPlayer].id;
-    //     game.handlePlayerAction(p3, "call");
-
-    //     // 应该进入flop
+    //     expect(game.currentRound).toBe("preflop");
+    //     game.handlePlayerAction("p2", "call");
+    //     game.handlePlayerAction("p3", "call");
+    //     game.handlePlayerAction("p1", "check");
+    //     // ----------------- flop -----------------
     //     expect(game.currentRound).toBe("flop");
+    //     game.handlePlayerAction("p3", "check");
+    //     game.handlePlayerAction("p1", "check");
+    //     game.handlePlayerAction("p2", "check");
+    //   });
 
-    //     // 模拟翻牌回合：所有玩家call
-    //     const f1 = game.players[game.currentPlayer].id;
-    //     game.handlePlayerAction(f1, "call");
-    //     const f2 = game.players[game.currentPlayer].id;
-    //     game.handlePlayerAction(f2, "call");
-    //     const f3 = game.players[game.currentPlayer].id;
-    //     game.handlePlayerAction(f3, "call");
-
-    //     // 翻牌结束后应进入turn
+    //   test("player bet, fold, fold, then last player win", () => {
     //     expect(game.currentRound).toBe("turn");
-
-    //     // 在turn时，假设当前轮到 Player1，Player1选择fold
-    //     // 强制设置当前玩家为Player1（测试用）
-    //     game.currentPlayer = game.players.find((p) => p.id === "p1").position;
+    //     game.handlePlayerAction("p3", "bet", 10);
     //     game.handlePlayerAction("p1", "fold");
+    //     game.handlePlayerAction("p2", "fold");
 
-    //     // 验证 Player1 的状态已更新为folded
-    //     expect(game.findPlayerById("p1").isFolded).toBe(true);
+    //     expect(game.activePlayers.length).toBe(1);
+    //     expect(game.players[2].chips).toBe(1040);
+    //     jest.advanceTimersByTime(3000);
+    //     expect(game.currentRound).toBe("preflop");
     //   });
     // });
+
+    describe("Turn action", () => {
+      beforeEach(() => {
+        game.players = [];
+        game.addPlayer("BigBlind", "p1");
+        game.addPlayer("Dealer", "p2");
+        game.addPlayer("SmallBlind", "p3");
+        // ------------- Preflop -------------
+        game.startGame();
+
+        expect(game.currentRound).toBe("preflop");
+        game.handlePlayerAction("p2", "call");
+        game.handlePlayerAction("p3", "call");
+        game.handlePlayerAction("p1", "check");
+        // ----------------- flop -----------------
+        expect(game.currentRound).toBe("flop");
+        game.handlePlayerAction("p3", "check");
+        game.handlePlayerAction("p1", "check");
+        game.handlePlayerAction("p2", "check");
+      });
+
+      test("player check, check, check, then proceed to river", () => {
+        expect(game.currentRound).toBe("turn");
+        game.handlePlayerAction("p3", "check");
+        game.handlePlayerAction("p1", "check");
+        game.handlePlayerAction("p2", "check");
+
+        expect(game.currentRound).toBe("river");
+        expect(game.activePlayers.length).toBe(3);
+        expect(game.sidePots.length).toBe(0);
+        expect(game.pot).toBe(60);
+      });
+
+      test("player bet, call, call, then proceed to river", () => {
+        expect(game.currentRound).toBe("turn");
+        game.handlePlayerAction("p3", "bet", 10);
+        game.handlePlayerAction("p1", "call");
+        game.handlePlayerAction("p2", "call");
+
+        expect(game.currentRound).toBe("river");
+        expect(game.activePlayers.length).toBe(3);
+        expect(game.pot).toBe(90);
+        expect(game.sidePots.length).toBe(0);
+      });
+
+      test("player bet, raise, call, call, then proceed to river", () => {
+        expect(game.currentRound).toBe("turn");
+        game.handlePlayerAction("p3", "bet", 10);
+        game.handlePlayerAction("p1", "raise", 20);
+        game.handlePlayerAction("p2", "call");
+        game.handlePlayerAction("p3", "call");
+
+        expect(game.currentRound).toBe("river");
+        expect(game.activePlayers.length).toBe(3);
+        expect(game.pot).toBe(120);
+        expect(game.sidePots.length).toBe(0);
+      });
+
+      test("player bet, fold, call, then proceed to river", () => {
+        expect(game.currentRound).toBe("turn");
+        game.handlePlayerAction("p3", "bet", 10);
+        game.handlePlayerAction("p1", "fold");
+        game.handlePlayerAction("p2", "call");
+
+        expect(game.currentRound).toBe("river");
+        expect(game.activePlayers.length).toBe(2);
+        expect(game.pot).toBe(80);
+        expect(game.sidePots.length).toBe(0);
+      });
+    });
   });
+
+  // describe("Folding on Turn/River", () => {
+  //   test("A player folds on turn and game proceeds correctly", () => {
+  //     game.startGame();
+
+  //     // 模拟预下注回合：所有玩家依次call/raise，使预下注结束进入flop
+  //     const p1 = game.players[game.currentPlayer].id;
+  //     game.handlePlayerAction(p1, "call");
+  //     const p2 = game.players[game.currentPlayer].id;
+  //     game.handlePlayerAction(p2, "raise", 40);
+  //     const p3 = game.players[game.currentPlayer].id;
+  //     game.handlePlayerAction(p3, "call");
+
+  //     // 应该进入flop
+  //     expect(game.currentRound).toBe("flop");
+
+  //     // 模拟翻牌回合：所有玩家call
+  //     const f1 = game.players[game.currentPlayer].id;
+  //     game.handlePlayerAction(f1, "call");
+  //     const f2 = game.players[game.currentPlayer].id;
+  //     game.handlePlayerAction(f2, "call");
+  //     const f3 = game.players[game.currentPlayer].id;
+  //     game.handlePlayerAction(f3, "call");
+
+  //     // 翻牌结束后应进入turn
+  //     expect(game.currentRound).toBe("turn");
+
+  //     // 在turn时，假设当前轮到 Player1，Player1选择fold
+  //     // 强制设置当前玩家为Player1（测试用）
+  //     game.currentPlayer = game.players.find((p) => p.id === "p1").position;
+  //     game.handlePlayerAction("p1", "fold");
+
+  //     // 验证 Player1 的状态已更新为folded
+  //     expect(game.findPlayerById("p1").isFolded).toBe(true);
+  //   });
+  // });
 
   //   // 4. 边池测试
   //   describe("Side Pots", () => {

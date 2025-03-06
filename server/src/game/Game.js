@@ -1430,6 +1430,78 @@ export default class Game {
       bigBlindPos: this.bigBlindPos,
     });
 
+    // 在flop轮中，需要确保所有活跃玩家都已经行动过
+    if (this.currentRound === "flop") {
+      const activePlayers = this.players.filter(
+        (p) => !p.isFolded && !p.isAllIn && p.isActive
+      );
+
+      // 检查是否所有活跃玩家都已经check
+      const allPlayersChecked = activePlayers.every((p) => p.hasChecked);
+
+      // 检查是否所有玩家的下注都相等
+      const allBetsEqual = activePlayers.every(
+        (p) => p.currentBet === this.currentRoundMaxBet || p.isAllIn
+      );
+
+      // 打印出活跃玩家的状态，帮助调试
+      console.log(
+        "Flop round active players:",
+        activePlayers.map((p) => ({
+          name: p.name,
+          position: p.position,
+          hasChecked: p.hasChecked,
+          currentBet: p.currentBet,
+          hasActed: p.hasActed,
+        }))
+      );
+
+      // 如果不是所有玩家都已经check，回合不应该结束
+      if (this.currentRoundMaxBet === 0 && !allPlayersChecked) {
+        console.log("Not all players have checked in flop round");
+
+        // 打印出哪些玩家还没有check
+        const notCheckedPlayers = activePlayers.filter((p) => !p.hasChecked);
+        console.log(
+          "Players who haven't checked yet:",
+          notCheckedPlayers.map((p) => `${p.name} (position ${p.position})`)
+        );
+
+        return false;
+      }
+
+      // 检查是否所有玩家都已经行动过
+      const allPlayersHaveActed = activePlayers.every((p) => {
+        // 如果玩家已经check或者下注，说明已经行动过
+        return p.hasChecked || p.currentBet > 0 || p.hasActed;
+      });
+
+      if (!allPlayersHaveActed) {
+        console.log("In flop round, but not all players have acted yet");
+
+        // 打印出哪些玩家还没有行动
+        const notActedPlayers = activePlayers.filter(
+          (p) => !p.hasChecked && !p.hasActed && p.currentBet === 0
+        );
+        console.log(
+          "Players who haven't acted yet:",
+          notActedPlayers.map((p) => `${p.name} (position ${p.position})`)
+        );
+
+        return false;
+      }
+
+      // 如果所有活跃玩家都已经check，且下注相等，回合应该结束
+      if (allPlayersHaveActed && allBetsEqual) {
+        console.log(
+          "All players have acted and all bets are equal in flop round"
+        );
+        return true;
+      }
+
+      return false;
+    }
+
     // 在river轮中，需要确保所有活跃玩家都已经行动过
     if (this.currentRound === "river") {
       const activePlayers = this.players.filter(
@@ -1546,8 +1618,23 @@ export default class Game {
           position: p.position,
           hasChecked: p.hasChecked,
           currentBet: p.currentBet,
+          hasActed: p.hasActed,
         }))
       );
+
+      // 如果不是所有玩家都已经check，回合不应该结束
+      if (this.currentRoundMaxBet === 0 && !allPlayersChecked) {
+        console.log("Not all players have checked in turn round");
+
+        // 打印出哪些玩家还没有check
+        const notCheckedPlayers = activePlayers.filter((p) => !p.hasChecked);
+        console.log(
+          "Players who haven't checked yet:",
+          notCheckedPlayers.map((p) => `${p.name} (position ${p.position})`)
+        );
+
+        return false;
+      }
 
       // 如果所有活跃玩家都已经check，或者所有玩家的下注都相等且有人下注
       if (allPlayersChecked && allBetsEqual) {
@@ -1574,8 +1661,8 @@ export default class Game {
       // 检查是否所有玩家都已经行动过
       // 在turn轮中，我们需要确保每个玩家都有机会行动
       const allPlayersHaveActed = activePlayers.every((p) => {
-        // 如果玩家已经check或者下注，说明已经行动过
-        return p.hasChecked || p.currentBet > 0;
+        // 如果玩家已经check或者下注或已经行动，说明已经行动过
+        return p.hasChecked || p.currentBet > 0 || p.hasActed;
       });
 
       if (!allPlayersHaveActed) {
@@ -1583,7 +1670,7 @@ export default class Game {
 
         // 打印出哪些玩家还没有行动
         const notActedPlayers = activePlayers.filter(
-          (p) => !p.hasChecked && p.currentBet === 0
+          (p) => !p.hasChecked && !p.hasActed && p.currentBet === 0
         );
         console.log(
           "Players who haven't acted yet:",
