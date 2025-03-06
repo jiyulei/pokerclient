@@ -72,6 +72,13 @@ export default class Game {
     this.players.push(player);
     this.activePlayerCount++;
 
+    // 如果游戏处于等待状态且现在有足够的玩家，重新开始游戏
+    if (this.isWaiting && this.players.length >= 2 && this.isGameInProgress) {
+      console.log("New player joined, resuming game");
+      this.isWaiting = false;
+      this.startNewHand();
+    }
+
     return player;
   }
 
@@ -107,12 +114,20 @@ export default class Game {
 
   // start a new hand
   startNewHand() {
+    console.log("startNewHand called, starting a new hand");
+
     if (!this.isGameInProgress) {
       throw new Error("Game has not been started");
     }
 
+    // 检查是否有足够的玩家
     if (this.players.length < 2) {
-      throw new Error("Need at least 2 players to start the game");
+      console.log(
+        "Not enough players to start a new hand, entering waiting state"
+      );
+      // 不再抛出错误，而是进入等待状态
+      this.enterWaitingState();
+      return;
     }
 
     // check if each player has enough chips
@@ -124,15 +139,21 @@ export default class Game {
         this.removePlayer(player.id);
       });
 
+      // 再次检查是否有足够的玩家
       if (this.players.length < 2) {
-        throw new Error("Not enough players with sufficient chips to continue");
+        console.log(
+          "Not enough players with sufficient chips, entering waiting state"
+        );
+        // 不再抛出错误，而是进入等待状态
+        this.enterWaitingState();
+        return;
       }
     }
 
     this.shownCards.clear(); // clear shown cards record
 
     this.round++;
-    this.currentRound = "preflop";
+    this.currentRound = "preflop"; // 明确设置为preflop
     this.pot = 0;
     this.communityCards = [];
     this.currentRoundMaxBet = 0;
@@ -205,8 +226,15 @@ export default class Game {
   // next round
   nextRound() {
     // 在preflop轮，如果大盲还没有行动过，不应该进入下一轮
+    // 但如果大盲已经全下，则视为已经行动过
     if (this.currentRound === "preflop" && !this.bigBlindHasActed) {
-      return;
+      const bigBlindPlayer = this.findPlayerByPosition(this.bigBlindPos);
+      if (bigBlindPlayer && bigBlindPlayer.isAllIn) {
+        // 如果大盲已经全下，视为已经行动过
+        this.bigBlindHasActed = true;
+      } else {
+        return;
+      }
     }
 
     // 如果只剩一个玩家，直接结束这手牌
@@ -235,6 +263,7 @@ export default class Game {
         this.dealRiver();
         break;
       case "river":
+        console.log("River round ended, calling endHand");
         this.endHand(); // directly call endHand
         return;
     }
@@ -334,56 +363,47 @@ export default class Game {
 
   // end hand
   endHand() {
+    console.log("endHand called, ending the current hand");
+
+    // 清除任何可能存在的超时
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+      this.timeoutId = null;
+    }
+
+    // 保存当前回合信息
+    const currentRoundBeforeEnd = this.currentRound;
+
     // 计算底池
     this.calculatePots();
 
-    // 分发底池
+    // 确定赢家并分配底池
     this.distributePots();
 
-    // if ended before river (only one player left)
-    if (this.inHandPlayers.length === 1) {
-      const winner = this.inHandPlayers[0];
-      this.addMessage(
-        `${winner.name} wins ${this.pot} chips (all other players folded)`
-      );
-      winner.chips += this.pot;
+    // 重置游戏状态
+    this.communityCards = [];
+    // 不将currentRound设置为null，保持当前回合状态
+    // this.currentRound = null; // 注释掉这行，不再设置为null
+    this.currentRoundMaxBet = 0;
+    this.mainPot = 0;
+    this.sidePots = [];
+    this.lastRaisePlayer = null;
+    this.lastRaiseAmount = 0;
 
-      console.log(
-        "Winner:",
-        `${winner.id} ${winner.name} (won by all others folding)`
-      );
-
-      // check players status
-      this.checkPlayersStatus();
-      return;
-    }
-
-    // show cards after river
-    // sort players by position (starting from small blind)
-    const playersToShow = [...this.inHandPlayers].sort((a, b) => {
-      // calculate position relative to small blind
-      const posA =
-        (a.position - this.smallBlindPos + this.players.length) %
-        this.players.length;
-      const posB =
-        (b.position - this.smallBlindPos + this.players.length) %
-        this.players.length;
-      return posA - posB;
+    // 重置玩家状态
+    this.players.forEach((player) => {
+      player.reset();
     });
 
-    playersToShow.forEach((player) => {
-      this.showCards(player.id, true); // force show cards
-    });
+    // 通知所有玩家本手牌已结束
+    this.addMessage("本手牌已结束");
 
-    // check players status
-    this.checkPlayersStatus();
+    console.log(`Hand ended, currentRound is: ${this.currentRound}`);
 
-    // if game is still in progress, start a new hand after 3 seconds
-    if (this.isGameInProgress && this.players.length >= 2) {
-      setTimeout(() => {
-        this.startNewHand();
-      }, 3000); // 3 seconds delay, adjust as needed
-    }
+    // 设置超时，开始新的一手牌
+    setTimeout(() => {
+      this.startNewHand();
+    }, 3000);
   }
 
   // handle player bet
@@ -393,9 +413,15 @@ export default class Game {
       throw new Error("Player not found");
     }
 
+    console.log(
+      `handleBet: player ${playerId} betting ${amount}, current pot: ${this.pot}`
+    );
+
     // player bet
     const betAmount = player.bet(amount);
     this.pot += betAmount;
+
+    console.log(`After bet, pot: ${this.pot}, player bet: ${betAmount}`);
 
     // update current round max bet
     this.currentRoundMaxBet = Math.max(
@@ -439,6 +465,9 @@ export default class Game {
     }
 
     player.check();
+
+    // 记录玩家已经check过，这对于河牌轮尤其重要
+    player.hasChecked = true;
   }
 
   // reset bets when a round ends
@@ -565,6 +594,12 @@ export default class Game {
       this.currentPlayer = this.smallBlindPos;
       this.lastRaisePlayer = null;
       this.bigBlindHasActed = true; // 非preflop轮不需要考虑大盲特权
+
+      // 确保在河牌轮开始时不会立即结束回合
+      if (this.currentRound === "river") {
+        console.log("Starting river round, ensuring players can act");
+        // 不设置lastRaisePlayer，让waitForPlayerAction方法处理
+      }
     }
 
     this.waitForPlayerAction();
@@ -572,69 +607,146 @@ export default class Game {
 
   // wait for player action
   waitForPlayerAction() {
-    // 在preflop轮，如果大盲还没有行动过，不应该结束回合
+    // 如果当前玩家不活跃、已弃牌或已全下，则跳到下一个玩家
     if (
-      this.currentRound === "preflop" &&
-      !this.bigBlindHasActed &&
-      this.currentPlayer === this.bigBlindPos
+      !this.players[this.currentPlayer].isActive ||
+      this.players[this.currentPlayer].isFolded ||
+      this.players[this.currentPlayer].isAllIn
     ) {
-      // 大盲需要行动，不检查是否结束回合
-    }
-    // 否则，检查是否所有玩家都已行动且下注相等，如果是则进入下一轮
-    else if (this.shouldEndRound()) {
-      this.nextRound();
-      return;
-    }
-
-    const player = this.players[this.currentPlayer];
-
-    // if player has folded or all in, skip to next player
-    if (!player.isActive || player.isFolded || player.isAllIn) {
       this.moveToNextPlayer();
       return;
     }
 
-    // add message notification
-    this.addMessage(`It's your turn`, player.id);
+    // 通知当前玩家该他行动了
+    this.addMessage(
+      `轮到 ${this.players[this.currentPlayer].name} 行动`,
+      this.players[this.currentPlayer].id
+    );
 
-    // set action timeout
-    this.actionTimeout = setTimeout(() => {
-      // timeout auto fold
-      this.handleFold(player.id);
-      this.addMessage(`Player ${player.name} fold due to timeout`);
+    // 在河牌轮中，我们需要特别处理，确保所有玩家都有机会行动
+    if (this.currentRound === "river") {
+      // 不立即检查是否应该结束回合，而是等待玩家行动
+      this.timeoutId = setTimeout(() => {
+        // 如果玩家没有在时间限制内行动，自动弃牌
+        this.handleFold(this.players[this.currentPlayer].id);
+      }, this.timeLimit * 1000);
+      return;
+    }
+
+    // 检查是否所有玩家都已行动且下注相等
+    if (this.shouldEndRound()) {
+      this.nextRound();
+      return;
+    }
+
+    // 设置超时，如果玩家没有在时间限制内行动，自动弃牌
+    this.timeoutId = setTimeout(() => {
+      this.handleFold(this.players[this.currentPlayer].id);
     }, this.timeLimit * 1000);
   }
 
   moveToNextPlayer() {
-    if (this.actionTimeout) {
-      clearTimeout(this.actionTimeout);
+    console.log("moveToNextPlayer called, currentRound:", this.currentRound);
+
+    // 更新活跃玩家列表
+    this.updateActivePlayers();
+
+    // 如果只剩一个活跃玩家，结束本手牌
+    if (this.inHandPlayers.length === 1) {
+      console.log("Only one active player left, ending hand with one player");
+      this.endHandWithOnePlayer();
+      return;
     }
 
-    // 1) First check: should we deal all cards?
-    const stillInPlayers = this.inHandPlayers.filter((p) => !p.isFolded);
-
-    // 判断是否所有玩家都全下
-    const allAllIn =
-      stillInPlayers.length > 1 && stillInPlayers.every((p) => p.isAllIn);
-    // 判断是否除一人外都全下，且那唯一未全下的玩家已经投入了当前最大注
-    const allButOneAllIn =
-      stillInPlayers.length > 1 &&
-      stillInPlayers.filter((p) => p.isAllIn).length ===
-        stillInPlayers.length - 1 &&
-      stillInPlayers.every(
-        (p) => p.isAllIn || p.currentBet === this.currentRoundMaxBet
-      );
-
-    // 新增逻辑：短码 all-in 不重新打开加注
-    // 如果有玩家 all-in 且其下注少于当前轮最大注，同时其他非全下玩家已都投入至少当前轮最大注，则结束本轮
-    const hasShortAllIn = stillInPlayers.some(
-      (p) => p.isAllIn && p.currentBet < this.currentRoundMaxBet
+    // 获取当前仍在游戏中的玩家（未弃牌）
+    const stillInPlayers = this.players.filter(
+      (p) => p.isActive && !p.isFolded
     );
-    const othersCovered = stillInPlayers
-      .filter((p) => !p.isAllIn)
-      .every((p) => p.currentBet >= this.currentRoundMaxBet);
 
-    if (allAllIn || allButOneAllIn || (hasShortAllIn && othersCovered)) {
+    // 检查是否所有玩家都全下
+    const allAllIn = stillInPlayers.every((p) => p.isAllIn);
+
+    // 检查是否除一人外都全下且那人已跟注
+    const nonAllInPlayers = stillInPlayers.filter((p) => !p.isAllIn);
+    const allButOneAllIn =
+      nonAllInPlayers.length === 1 &&
+      nonAllInPlayers[0].currentBet === this.currentRoundMaxBet;
+
+    // 获取仍在游戏中且非全下的玩家数量
+    const activePlayersRemaining = stillInPlayers.filter(
+      (p) => !p.isAllIn
+    ).length;
+
+    // 如果有活跃玩家（非全下）超过1个，则不应该直接发完所有牌
+    const shouldContinueNormally = activePlayersRemaining >= 2;
+
+    // 在preflop轮，如果大盲还没有行动过，不应该直接发完所有牌
+    let bigBlindNeedsToAct = false;
+    if (this.currentRound === "preflop" && !this.bigBlindHasActed) {
+      const bigBlindPlayer = this.findPlayerByPosition(this.bigBlindPos);
+      // 如果大盲还没有行动过且不是全下状态，则需要给大盲行动机会
+      if (bigBlindPlayer && !bigBlindPlayer.isAllIn) {
+        bigBlindNeedsToAct = true;
+      }
+    }
+
+    console.log("Game state:", {
+      allAllIn,
+      allButOneAllIn,
+      activePlayersRemaining,
+      shouldContinueNormally,
+      bigBlindNeedsToAct,
+      pot: this.pot,
+      currentPlayer: this.currentPlayer,
+      bigBlindPos: this.bigBlindPos,
+    });
+
+    // 只有在以下情况才直接发完所有牌：
+    // 1. 所有玩家都全下，或
+    // 2. 除一人外都全下且那人已跟注，且
+    // 3. 没有足够的活跃玩家继续正常下注，且
+    // 4. 不是在preflop轮且大盲需要行动
+    const shouldDealAllCards =
+      (allAllIn || allButOneAllIn) &&
+      !shouldContinueNormally &&
+      !bigBlindNeedsToAct;
+
+    // 如果当前是preflop轮，且大盲还没有行动过，且大盲不是全下状态，则需要找到下一个玩家
+    if (this.currentRound === "preflop" && !this.bigBlindHasActed) {
+      const bigBlindPlayer = this.findPlayerByPosition(this.bigBlindPos);
+      if (bigBlindPlayer && !bigBlindPlayer.isAllIn) {
+        console.log("Big blind needs to act in preflop round");
+
+        // 如果当前玩家不是大盲，则找到下一个玩家
+        if (this.currentPlayer !== this.bigBlindPos) {
+          // 找到下一个应该行动的玩家
+          let nextPlayerPos = (this.currentPlayer + 1) % this.players.length;
+          let loopCount = 0;
+          const maxLoops = this.players.length; // 防止无限循环
+
+          while (
+            loopCount < maxLoops &&
+            (!this.players[nextPlayerPos].isActive ||
+              this.players[nextPlayerPos].isFolded ||
+              this.players[nextPlayerPos].isAllIn) &&
+            nextPlayerPos !== this.bigBlindPos // 确保不会跳过大盲
+          ) {
+            nextPlayerPos = (nextPlayerPos + 1) % this.players.length;
+            loopCount++;
+          }
+
+          // 更新当前玩家
+          this.currentPlayer = nextPlayerPos;
+          this.waitForPlayerAction();
+          return;
+        }
+      }
+    }
+
+    if (shouldDealAllCards) {
+      console.log(
+        "All players are all-in or only one player left who has matched the bet, dealing all cards"
+      );
       // 重置当前回合的下注
       this.resetBets();
 
@@ -660,55 +772,95 @@ export default class Game {
       return;
     }
 
-    // 2) Otherwise: find next player
-    do {
-      this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
+    // 检查是否所有玩家都已行动且下注相等
+    // 在河牌轮中，我们需要确保所有玩家都有机会行动
+    if (this.currentRound === "river") {
+      // 检查是否所有非全下的活跃玩家都已经check或下注
+      const allPlayersActed = this.activePlayers
+        .filter((p) => !p.isAllIn && !p.isFolded)
+        .every((p) => p.hasChecked || p.currentBet > 0);
 
-      // 如果是preflop轮，且当前玩家是大盲，标记大盲已经行动
-      if (
-        this.currentRound === "preflop" &&
-        this.currentPlayer === this.bigBlindPos
-      ) {
-        this.bigBlindHasActed = true;
+      // 检查所有玩家的下注是否相等
+      const allBetsEqual = this.activePlayers
+        .filter((p) => !p.isAllIn && !p.isFolded)
+        .every((p) => p.currentBet === this.currentRoundMaxBet);
+
+      // 只有当所有玩家都行动过且下注相等时，才结束游戏
+      if (allPlayersActed && allBetsEqual && this.shouldEndRound()) {
+        this.endHand();
+        return;
       }
+    } else if (this.shouldEndRound()) {
+      // 如果不是河牌轮，且应该结束当前回合，则进入下一回合
+      this.nextRound();
+      return;
+    }
 
-      // 检查是否回到了最后一个加注的玩家
-      if (this.currentPlayer === this.lastRaisePlayer) {
-        const lastRaisePlayer = this.players[this.lastRaisePlayer];
+    // 找到下一个应该行动的玩家
+    let nextPlayerPos = (this.currentPlayer + 1) % this.players.length;
+    let loopCount = 0;
+    const maxLoops = this.players.length; // 防止无限循环
 
-        // 在preflop轮，如果大盲还没有行动过，即使回到了最后加注的玩家，也不结束回合
-        if (this.currentRound === "preflop" && !this.bigBlindHasActed) {
-          // 继续循环，让大盲有机会行动
-        }
-        // 否则，如果最后加注的玩家已经全下或者应该结束回合，则进入下一轮
-        else if (lastRaisePlayer.isAllIn || this.shouldEndRound()) {
-          this.nextRound();
+    while (
+      loopCount < maxLoops &&
+      (!this.players[nextPlayerPos].isActive ||
+        this.players[nextPlayerPos].isFolded ||
+        this.players[nextPlayerPos].isAllIn)
+    ) {
+      nextPlayerPos = (nextPlayerPos + 1) % this.players.length;
+      loopCount++;
+
+      // 如果循环回到当前玩家或已经循环了一圈，说明没有其他玩家可以行动了
+      if (loopCount >= maxLoops) {
+        console.log("No more players can act, checking if round should end");
+
+        // 如果当前是河牌轮，结束游戏
+        if (this.currentRound === "river") {
+          this.endHand();
           return;
         }
+        // 否则进入下一回合
+        this.nextRound();
+        return;
       }
-    } while (
-      !this.players[this.currentPlayer].isActive ||
-      this.players[this.currentPlayer].isFolded ||
-      this.players[this.currentPlayer].isAllIn
-    );
+    }
 
+    // 更新当前玩家
+    this.currentPlayer = nextPlayerPos;
     this.waitForPlayerAction();
   }
 
   // handle player action
   handlePlayerAction(playerId, action, amount = 0) {
+    console.log(
+      `handlePlayerAction: ${playerId} ${action} ${amount}, currentRound: ${this.currentRound}, pot: ${this.pot}`
+    );
+
     const player = this.findPlayerById(playerId);
     if (player.position !== this.currentPlayer) {
       throw new Error("Not your turn");
     }
 
     try {
+      // 如果当前是preflop轮且当前玩家是大盲，标记大盲已经行动
+      if (
+        this.currentRound === "preflop" &&
+        player.position === this.bigBlindPos
+      ) {
+        this.bigBlindHasActed = true;
+      }
+
       switch (action) {
         case "fold":
           this.handleFold(playerId);
           break;
         case "check":
           this.handleCheck(playerId);
+          // 在河牌轮，如果玩家check，需要设置lastRaisePlayer以便正确结束回合
+          if (this.currentRound === "river" && this.lastRaisePlayer === null) {
+            console.log("Setting lastRaisePlayer after check in river round");
+            this.lastRaisePlayer = player.position;
+          }
           break;
         case "call":
           // 添加检查：如果玩家筹码不足以跟注，抛出错误
@@ -735,6 +887,9 @@ export default class Game {
           this.lastRaisePlayer = player.position;
           break;
         case "allin":
+          console.log(
+            `Player ${playerId} is going all-in with ${player.chips} chips`
+          );
           const allinAmount = player.chips;
           this.handleBet(playerId, allinAmount);
           if (player.currentBet > this.currentRoundMaxBet) {
@@ -748,6 +903,10 @@ export default class Game {
         default:
           throw new Error("Invalid action");
       }
+
+      console.log(
+        `After action, pot: ${this.pot}, currentRound: ${this.currentRound}`
+      );
 
       // move to next player
       this.moveToNextPlayer();
@@ -931,7 +1090,7 @@ export default class Game {
 
   // distribute pots
   distributePots() {
-    console.log("hasSidePots", this.sidePots);
+    console.log("distributePots");
     // 检查是否有边池
     const hasSidePots = this.sidePots && this.sidePots.length > 0;
 
@@ -1017,21 +1176,40 @@ export default class Game {
 
   // check if the round should end
   shouldEndRound() {
+    console.log("Checking if round should end:", {
+      currentRound: this.currentRound,
+      lastRaisePlayer: this.lastRaisePlayer,
+      bigBlindHasActed: this.bigBlindHasActed,
+      currentPlayer: this.currentPlayer,
+      bigBlindPos: this.bigBlindPos,
+    });
+
     // if there is no last raising player, the round is just starting
     if (this.lastRaisePlayer === null) {
+      console.log("No last raising player, round is just starting");
       return false;
     }
 
     // 在preflop轮，如果大盲还没有行动过，不应该结束回合
+    // 但如果大盲已经全下，则视为已经行动过
     if (this.currentRound === "preflop" && !this.bigBlindHasActed) {
-      return false;
+      const bigBlindPlayer = this.findPlayerByPosition(this.bigBlindPos);
+      if (bigBlindPlayer && bigBlindPlayer.isAllIn) {
+        // 如果大盲已经全下，视为已经行动过
+        this.bigBlindHasActed = true;
+      } else {
+        console.log("Preflop round and big blind has not acted yet");
+        return false;
+      }
     }
 
     // 检查当前玩家是否是大盲，如果是且在preflop轮，需要给他行动机会
     if (
       this.currentRound === "preflop" &&
-      this.currentPlayer === this.bigBlindPos
+      this.currentPlayer === this.bigBlindPos &&
+      !this.bigBlindHasActed
     ) {
+      console.log("Current player is big blind in preflop round");
       return false;
     }
 
@@ -1040,22 +1218,94 @@ export default class Game {
       (p) => !p.isFolded && !p.isAllIn && p.isActive
     );
 
-    return activePlayers.every(
+    const allBetsEqual = activePlayers.every(
       (p) => p.currentBet === this.currentRoundMaxBet || p.isAllIn
     );
+
+    console.log(
+      "All bets equal:",
+      allBetsEqual,
+      "Active players:",
+      activePlayers.length
+    );
+
+    return allBetsEqual;
   }
 
   // end hand with one player
   endHandWithOnePlayer() {
+    console.log("endHandWithOnePlayer called, ending hand with one player");
+
     const winner = this.activePlayers[0];
-    winner.chips += this.pot;
+    const potAmount = this.pot; // 保存当前底池金额
+    winner.chips += potAmount;
+
+    // 保存当前回合信息，以便在日志中显示
+    const currentRoundBeforeEnd = this.currentRound;
+
+    // 重置游戏状态
     this.pot = 0;
-    this.currentRound = null;
     this.currentRoundMaxBet = 0;
+    this.mainPot = 0;
+    this.sidePots = [];
+    this.lastRaisePlayer = null;
+    this.lastRaiseAmount = 0;
+
+    // 通知所有玩家本手牌已结束
+    this.addMessage(`${winner.name} 获胜并赢得 ${potAmount} 筹码`);
+
+    // 重置玩家状态
+    this.players.forEach((player) => {
+      player.reset();
+    });
+
+    // 设置一个标志，表示这是由于只剩一名玩家而结束的手牌
+    this._endedWithOnePlayer = true;
+
+    console.log(
+      `Hand ended with one player, currentRound was: ${currentRoundBeforeEnd}`
+    );
+
+    // 在这里不设置currentRound为null，而是在startNewHand中设置
 
     // reset game state
     setTimeout(() => {
+      // 如果是由于只剩一名玩家而结束的手牌，不增加round计数
+      if (this._endedWithOnePlayer) {
+        this._endedWithOnePlayer = false;
+        // 减少round计数，因为startNewHand会增加它
+        this.round--;
+      }
       this.startNewHand();
     }, 3000);
+  }
+
+  // 新增方法：进入等待状态
+  enterWaitingState() {
+    console.log("Game entering waiting state, waiting for more players");
+
+    // 设置游戏状态为等待中
+    this.isWaiting = true;
+
+    // 保存当前回合状态
+    this.currentRound = "waiting";
+
+    // 清空底池和公共牌
+    this.pot = 0;
+    this.communityCards = [];
+    this.currentRoundMaxBet = 0;
+
+    // 重置玩家状态，但保留筹码
+    this.players.forEach((player) => {
+      player.isFolded = false;
+      player.isAllIn = false;
+      player.currentBet = 0;
+      player.totalBet = 0;
+      player.hand = [];
+      player.hasChecked = false;
+    });
+
+    // 通知所有玩家游戏进入等待状态
+    this.addMessage("游戏进入等待状态，等待更多玩家加入");
   }
 }

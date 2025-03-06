@@ -31,7 +31,6 @@ export default class Player {
     return amount;
   }
 
- 
   check() {
     this.hasChecked = true;
     return 0; // return bet amount (check is 0)
@@ -47,7 +46,6 @@ export default class Player {
   // reset player status (when a new game round starts)
   reset() {
     this.hand = [];
-    this.isActive = true;
     this.isFolded = false;
     this.isAllIn = false;
     this.currentBet = 0;
