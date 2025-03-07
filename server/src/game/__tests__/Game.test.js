@@ -974,7 +974,6 @@ describe("Game", () => {
     });
   });
 
-  // 5. Position Movement Tests
   describe("Position Movement Tests", () => {
     let game;
 
