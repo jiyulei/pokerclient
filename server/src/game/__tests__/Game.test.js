@@ -705,7 +705,7 @@ describe("Game", () => {
           expect(game.pot).toBe(70);
           expect(game.activePlayers.length).toBe(2);
 
-          // -------------- dealer call --------------
+          // -------------- dealer fold --------------
           game.handlePlayerAction("p2", "fold");
 
           expect(game.activePlayers.length).toBe(1);
@@ -821,38 +821,38 @@ describe("Game", () => {
       });
     });
 
-    // describe("Turn action, player fold", () => {
-    //   beforeEach(() => {
-    //     game.players = [];
-    //     game.addPlayer("BigBlind", "p1");
-    //     game.addPlayer("Dealer", "p2");
-    //     game.addPlayer("SmallBlind", "p3");
-    //     // ------------- Preflop -------------
-    //     game.startGame();
+    describe("Turn action, player fold", () => {
+      beforeEach(() => {
+        game.players = [];
+        game.addPlayer("BigBlind", "p1");
+        game.addPlayer("Dealer", "p2");
+        game.addPlayer("SmallBlind", "p3");
+        // ------------- Preflop -------------
+        game.startGame();
 
-    //     expect(game.currentRound).toBe("preflop");
-    //     game.handlePlayerAction("p2", "call");
-    //     game.handlePlayerAction("p3", "call");
-    //     game.handlePlayerAction("p1", "check");
-    //     // ----------------- flop -----------------
-    //     expect(game.currentRound).toBe("flop");
-    //     game.handlePlayerAction("p3", "check");
-    //     game.handlePlayerAction("p1", "check");
-    //     game.handlePlayerAction("p2", "check");
-    //   });
+        expect(game.currentRound).toBe("preflop");
+        game.handlePlayerAction("p2", "call");
+        game.handlePlayerAction("p3", "call");
+        game.handlePlayerAction("p1", "check");
+        // ----------------- flop -----------------
+        expect(game.currentRound).toBe("flop");
+        game.handlePlayerAction("p3", "check");
+        game.handlePlayerAction("p1", "check");
+        game.handlePlayerAction("p2", "check");
+      });
 
-    //   test("player bet, fold, fold, then last player win", () => {
-    //     expect(game.currentRound).toBe("turn");
-    //     game.handlePlayerAction("p3", "bet", 10);
-    //     game.handlePlayerAction("p1", "fold");
-    //     game.handlePlayerAction("p2", "fold");
+      test("player bet, fold, fold, then last player win", () => {
+        expect(game.currentRound).toBe("turn");
+        game.handlePlayerAction("p3", "bet", 10);
+        game.handlePlayerAction("p1", "fold");
+        game.handlePlayerAction("p2", "fold");
 
-    //     expect(game.activePlayers.length).toBe(1);
-    //     expect(game.players[2].chips).toBe(1040);
-    //     jest.advanceTimersByTime(3000);
-    //     expect(game.currentRound).toBe("preflop");
-    //   });
-    // });
+        // expect(game.activePlayers.length).toBe(1);
+        expect(game.players[2].chips).toBe(1040);
+        jest.advanceTimersByTime(3000);
+        expect(game.currentRound).toBe("preflop");
+      });
+    });
 
     describe("Turn action", () => {
       beforeEach(() => {

@@ -788,11 +788,19 @@ export default class Game {
   moveToNextPlayer() {
     console.log("moveToNextPlayer called, currentRound:", this.currentRound);
 
+    // 确保 currentPlayer 有效
+    if (this.currentPlayer === null || this.currentPlayer === undefined) {
+      console.log(
+        "currentPlayer is null or undefined, cannot move to next player"
+      );
+      return;
+    }
+
     // 更新活跃玩家列表
     this.updateActivePlayers();
 
     // 如果只剩一个玩家在游戏中（其他都弃牌了），结束本手牌
-    if (this.inHandPlayers.length === 1) {
+    if (this.inHandPlayers.length === 1 && !this._endingHand) {
       console.log("Only one active player left, ending hand with one player");
       this.endHandWithOnePlayer();
       return;
@@ -1101,9 +1109,11 @@ export default class Game {
         this.bigBlindHasActed = true;
       }
 
+      let handEnded = false; // 添加标志来跟踪手牌是否已结束
+
       switch (action) {
         case "fold":
-          this.handleFold(playerId);
+          handEnded = this.handleFold(playerId);
           break;
         case "check":
           this.handleCheck(playerId);
@@ -1154,8 +1164,11 @@ export default class Game {
         `After action, pot: ${this.pot}, currentRound: ${this.currentRound}`
       );
 
-      // move to next player
-      this.moveToNextPlayer();
+      // 只有当手牌没有结束时，才移动到下一个玩家
+      if (!handEnded) {
+        // move to next player
+        this.moveToNextPlayer();
+      }
     } catch (error) {
       this.addMessage(error.message, playerId);
       throw error;
@@ -1733,6 +1746,15 @@ export default class Game {
 
   // end hand with one player
   endHandWithOnePlayer() {
+    // 如果已经在结束手牌过程中，不要重复调用
+    if (this._endingHand) {
+      console.log(
+        "Already ending hand, ignoring duplicate call to endHandWithOnePlayer"
+      );
+      return;
+    }
+
+    this._endingHand = true;
     console.log("endHandWithOnePlayer called, ending hand with one player");
 
     const winner = this.activePlayers[0];
@@ -1758,9 +1780,6 @@ export default class Game {
       player.reset();
     });
 
-    // 设置一个标志，表示这是由于只剩一名玩家而结束的手牌
-    this._endedWithOnePlayer = true;
-
     console.log(
       `Hand ended with one player, currentRound was: ${currentRoundBeforeEnd}`
     );
@@ -1769,12 +1788,7 @@ export default class Game {
 
     // reset game state
     setTimeout(() => {
-      // 如果是由于只剩一名玩家而结束的手牌，不增加round计数
-      if (this._endedWithOnePlayer) {
-        this._endedWithOnePlayer = false;
-        // 减少round计数，因为startNewHand会增加它
-        this.round--;
-      }
+      this._endingHand = false; // 重置结束标志
       this.startNewHand();
     }, 3000);
   }
