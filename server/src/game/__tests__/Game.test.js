@@ -812,6 +812,7 @@ describe("Game", () => {
         game.handlePlayerAction("p3", "check");
         game.handlePlayerAction("p2", "check");
 
+        // -------------- river --------------
         expect(game.currentRound).toBe("river");
         game.handlePlayerAction("p3", "bet", 100);
         game.handlePlayerAction("p2", "call");
@@ -902,90 +903,282 @@ describe("Game", () => {
         expect(game.currentRound).toBe("preflop");
       });
     });
+
+    describe("Turn action: Short all-in causes side pots", () => {
+      test("Short all-in causes side pots with four players", () => {
+        game.players = [];
+        game.addPlayer("BigBlind", "p1");
+        game.addPlayer("Dealer", "p2");
+        game.addPlayer("SmallBlind", "p3");
+        game.players[0].chips = 50; // Player1只有50
+        const initialChips = {};
+        game.players.forEach((player, index) => {
+          if (player && player.isActive) {
+            initialChips[`p${index + 1}`] = player.chips;
+          }
+        });
+        const initialChipsTotal = Object.values(initialChips).reduce(
+          (a, b) => a + b,
+          0
+        );
+        game.startGame();
+        // ---- preflop ----
+        expect(game.currentRound).toBe("preflop");
+
+        game.handlePlayerAction("p2", "call");
+        game.handlePlayerAction("p3", "call");
+        game.handlePlayerAction("p1", "check");
+
+        // ---- flop ----
+        expect(game.currentRound).toBe("flop");
+
+        game.handlePlayerAction("p3", "check");
+        game.handlePlayerAction("p1", "check");
+        game.handlePlayerAction("p2", "check");
+
+        // -------------- turn --------------
+        expect(game.currentRound).toBe("turn");
+        expect(game.activePlayers.length).toBe(3);
+        expect(game.sidePots.length).toBe(0);
+        expect(game.pot).toBe(60);
+
+        game.handlePlayerAction("p3", "bet", 100);
+        game.handlePlayerAction("p1", "allin");
+        game.handlePlayerAction("p2", "call");
+
+        // -------------- river --------------
+        expect(game.currentRound).toBe("river");
+        expect(game.activePlayers.length).toBe(2);
+        expect(game.sidePots.length).toBe(1);
+
+        game.handlePlayerAction("p3", "check");
+        game.handlePlayerAction("p2", "check");
+
+        const finalChips = {};
+        game.players.forEach((player, index) => {
+          if (player && player.isActive) {
+            finalChips[`p${index + 1}`] = player.chips;
+          }
+        });
+        const finalChipsTotal = Object.values(finalChips).reduce(
+          (a, b) => a + b,
+          0
+        );
+
+        expect(finalChipsTotal).toBe(initialChipsTotal);
+
+        jest.advanceTimersByTime(3000);
+        expect(game.currentRound).toBe("preflop");
+        expect(game.round).toBe(2);
+      });
+    });
   });
 
-  // describe("Folding on Turn/River", () => {
-  //   test("A player folds on turn and game proceeds correctly", () => {
-  //     game.startGame();
+  // 5. Position Movement Tests
+  describe("Position Movement Tests", () => {
+    let game;
 
-  //     // 模拟预下注回合：所有玩家依次call/raise，使预下注结束进入flop
-  //     const p1 = game.players[game.currentPlayer].id;
-  //     game.handlePlayerAction(p1, "call");
-  //     const p2 = game.players[game.currentPlayer].id;
-  //     game.handlePlayerAction(p2, "raise", 40);
-  //     const p3 = game.players[game.currentPlayer].id;
-  //     game.handlePlayerAction(p3, "call");
+    beforeEach(() => {
+      game = new Game({ timeLimit: 10 });
+      jest.useFakeTimers();
+    });
 
-  //     // 应该进入flop
-  //     expect(game.currentRound).toBe("flop");
+    afterEach(() => {
+      jest.useRealTimers();
+    });
 
-  //     // 模拟翻牌回合：所有玩家call
-  //     const f1 = game.players[game.currentPlayer].id;
-  //     game.handlePlayerAction(f1, "call");
-  //     const f2 = game.players[game.currentPlayer].id;
-  //     game.handlePlayerAction(f2, "call");
-  //     const f3 = game.players[game.currentPlayer].id;
-  //     game.handlePlayerAction(f3, "call");
+    test("Button position should move correctly in 2-player game", () => {
+      // Add two players
+      game.addPlayer("Player1", "p1");
+      game.addPlayer("Player2", "p2");
 
-  //     // 翻牌结束后应进入turn
-  //     expect(game.currentRound).toBe("turn");
+      // Start the game
+      game.startGame();
 
-  //     // 在turn时，假设当前轮到 Player1，Player1选择fold
-  //     // 强制设置当前玩家为Player1（测试用）
-  //     game.currentPlayer = game.players.find((p) => p.id === "p1").position;
-  //     game.handlePlayerAction("p1", "fold");
+      // Record initial positions
+      const initialDealer = game.dealer;
+      console.log("Initial dealer position:", initialDealer);
 
-  //     // 验证 Player1 的状态已更新为folded
-  //     expect(game.findPlayerById("p1").isFolded).toBe(true);
-  //   });
-  // });
+      // End current hand and start a new one
+      game.endHand();
+      jest.advanceTimersByTime(3000);
 
-  //   // 4. 边池测试
-  //   describe("Side Pots", () => {
-  //     beforeEach(() => {
-  //       game.addPlayer("player1", 100); // 较少筹码
-  //       game.addPlayer("player2", 500);
-  //       game.addPlayer("player3", 1000);
-  //       game.startGame();
-  //     });
+      // Verify dealer position has moved
+      console.log("Dealer position after first move:", game.dealer);
+      expect(game.dealer).toBe((initialDealer + 1) % 2);
 
-  //     test("should create side pots when player is all-in", () => {
-  //       const player1 = game.findPlayerById(game.players[0].id);
-  //       game.handlePlayerAction(player1.id, "allin");
+      // In 2-player game, dealer is also small blind
+      expect(game.smallBlindPos).toBe(game.dealer);
+      expect(game.bigBlindPos).toBe((game.dealer + 1) % 2);
+    });
 
-  //       // 其他玩家跟注
-  //       const player2 = game.findPlayerById(game.players[1].id);
-  //       game.handlePlayerAction(player2.id, "call");
+    test("Positions should move correctly in multi-player game", () => {
+      // Add three players
+      game.addPlayer("Player1", "p1");
+      game.addPlayer("Player2", "p2");
+      game.addPlayer("Player3", "p3");
 
-  //       const player3 = game.findPlayerById(game.players[2].id);
-  //       game.handlePlayerAction(player3.id, "call");
+      // Start the game
+      game.startGame();
 
-  //       game.calculatePots();
-  //       expect(game.sidePots.length).toBeGreaterThan(0);
-  //     });
-  //   });
+      // Record initial positions
+      const initialDealer = game.dealer;
+      const initialSmallBlind = game.smallBlindPos;
+      const initialBigBlind = game.bigBlindPos;
 
-  //   // 5. 位置移动测试
-  //   describe("Position Movement", () => {
-  //     test("should handle button movement correctly in 2 player game", () => {
-  //       game.addPlayer("player1", 1000);
-  //       game.addPlayer("player2", 1000);
-  //       game.startGame();
+      // Verify initial position relationships
+      expect(initialSmallBlind).toBe((initialDealer + 1) % 3);
+      expect(initialBigBlind).toBe((initialDealer + 2) % 3);
 
-  //       const initialDealer = game.dealer;
-  //       game.moveButton();
-  //       expect(game.dealer).toBe((initialDealer + 1) % 2);
-  //     });
+      // End current hand and start a new one
+      game.endHand();
+      jest.advanceTimersByTime(3000);
 
-  //     test("should handle button movement correctly in multi-player game", () => {
-  //       game.addPlayer("player1", 1000);
-  //       game.addPlayer("player2", 1000);
-  //       game.addPlayer("player3", 1000);
-  //       game.startGame();
+      // Verify positions have moved correctly
+      expect(game.dealer).toBe((initialDealer + 1) % 3);
+      expect(game.smallBlindPos).toBe((game.dealer + 1) % 3);
+      expect(game.bigBlindPos).toBe((game.dealer + 2) % 3);
 
-  //       const initialDealer = game.dealer;
-  //       game.moveButton();
-  //       expect(game.dealer).toBe((initialDealer + 1) % 3);
-  //     });
-  //   });
+      // End hand again and start a new one
+      game.endHand();
+      jest.advanceTimersByTime(3000);
+
+      // Verify positions have moved again
+      expect(game.dealer).toBe((initialDealer + 2) % 3);
+      expect(game.smallBlindPos).toBe((game.dealer + 1) % 3);
+      expect(game.bigBlindPos).toBe((game.dealer + 2) % 3);
+    });
+
+    test("Positions should return to original point after a complete round in multi-player game", () => {
+      // Add four players
+      game.addPlayer("Player1", "p1");
+      game.addPlayer("Player2", "p2");
+      game.addPlayer("Player3", "p3");
+      game.addPlayer("Player4", "p4");
+
+      // Start the game
+      game.startGame();
+
+      // Record initial dealer position
+      const initialDealer = game.dealer;
+
+      // Complete four hands (each player gets to be dealer once)
+      for (let i = 0; i < 4; i++) {
+        game.endHand();
+        jest.advanceTimersByTime(3000);
+        expect(game.dealer).toBe((initialDealer + i + 1) % 4);
+      }
+
+      // Verify position has returned to the original point
+      expect(game.dealer).toBe(initialDealer);
+    });
+
+    test("Positions should move correctly after adding a player mid-game", () => {
+      // Initially add two players
+      game.addPlayer("Player1", "p1");
+      game.addPlayer("Player2", "p2");
+
+      // Start the game
+      game.startGame();
+
+      // Record initial dealer position
+      const initialDealer = game.dealer;
+      console.log("Initial dealer position:", initialDealer);
+
+      // End current hand and start a new one
+      game.endHand();
+      jest.advanceTimersByTime(3000);
+
+      // Verify dealer position has moved
+      console.log("Dealer position after first move:", game.dealer);
+      expect(game.dealer).toBe((initialDealer + 1) % 2);
+
+      // Record dealer position before adding third player
+      const dealerBeforeAddingThirdPlayer = game.dealer;
+
+      // Add a third player
+      game.addPlayer("Player3", "p3");
+      console.log(
+        "Player list after adding third player:",
+        game.players.map((p) => `${p.name}(${p.position})`)
+      );
+
+      // End current hand and start a new one
+      game.endHand();
+      jest.advanceTimersByTime(3000);
+
+      // Dealer position should be (previous dealer position + 1) % number of players
+      expect(game.dealer).toBe((dealerBeforeAddingThirdPlayer + 1) % 3);
+      expect(game.smallBlindPos).toBe((game.dealer + 1) % 3);
+      expect(game.bigBlindPos).toBe((game.dealer + 2) % 3);
+    });
+
+    test("Positions should move correctly after removing a player mid-game", () => {
+      // Add four players
+      game.addPlayer("Player1", "p1");
+      game.addPlayer("Player2", "p2");
+      game.addPlayer("Player3", "p3");
+      game.addPlayer("Player4", "p4");
+
+      // Start the game
+      game.startGame();
+
+      // Record initial dealer position
+      const initialDealer = game.dealer;
+
+      // End current hand and start a new one
+      game.endHand();
+      jest.advanceTimersByTime(3000);
+
+      // Verify dealer position has moved
+      const firstMoveDealer = game.dealer;
+      expect(firstMoveDealer).toBe((initialDealer + 1) % 4);
+
+      // Remove a player (the one after the dealer)
+      const playerToRemove = (game.dealer + 1) % 4;
+      const playerIdToRemove = game.players[playerToRemove].id;
+      game.removePlayer(playerIdToRemove);
+
+      // End current hand and start a new one
+      game.endHand();
+      jest.advanceTimersByTime(3000);
+
+      // Verify positions in 3-player game
+      // Note: Since a player was removed, positions may be reassigned, so we check relative relationships
+      expect(game.players.length).toBe(3);
+
+      // Verify small blind and big blind positions relative to dealer
+      expect(game.smallBlindPos).toBe((game.dealer + 1) % 3);
+      expect(game.bigBlindPos).toBe((game.dealer + 2) % 3);
+    });
+
+    test("Positions should move correctly after removing the dealer", () => {
+      // Add three players
+      game.addPlayer("Player1", "p1");
+      game.addPlayer("Player2", "p2");
+      game.addPlayer("Player3", "p3");
+
+      // Start the game
+      game.startGame();
+
+      // Record initial dealer position
+      const initialDealer = game.dealer;
+      const dealerPlayerId = game.players[initialDealer].id;
+
+      // Remove the dealer
+      game.removePlayer(dealerPlayerId);
+
+      // Verify dealer position has been adjusted
+      expect(game.players.length).toBe(2);
+
+      // End current hand and start a new one
+      game.endHand();
+      jest.advanceTimersByTime(3000);
+
+      // Verify positions in 2-player game
+      // In 2-player game, dealer is also small blind
+      expect(game.smallBlindPos).toBe(game.dealer);
+      expect(game.bigBlindPos).toBe((game.dealer + 1) % 2);
+    });
+  });
 });
