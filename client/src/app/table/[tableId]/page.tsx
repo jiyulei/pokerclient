@@ -1,5 +1,9 @@
-export default function TablePage({ params }: { params: { tableId: string } }) {
-  const { tableId } = params;
+interface TablePageProps {
+  params: Promise<{ tableId: string }>;
+}
+
+export default async function TablePage(props: TablePageProps) {
+  const { tableId } = await props.params;
 
   return (
     <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-900 text-white">
