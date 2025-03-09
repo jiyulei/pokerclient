@@ -1,6 +1,6 @@
-import Player from "./Player";
-import Deck from "./Deck";
-import { getWinner } from "./actions/Evaluate";
+import Player from "./Player.js";
+import Deck from "./Deck.js";
+import { getWinner } from "./actions/Evaluate.js";
 // TODO: add spectator feature
 // TODO: add game history feature
 // TODO: might need to update name based on login user name
