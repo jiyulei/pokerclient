@@ -30,16 +30,35 @@ model User {
 }
 
 model Game {
-  id             String    @id @default(cuid())
-  status         String    @default("WAITING") // WAITING, IN_PROGRESS, COMPLETED
-  pot            Int       @default(0)
-  currentRound   String    @default("preflop")
-  communityCards String[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  
+  // 游戏状态
+  status              String    @default("WAITING") // WAITING, IN_PROGRESS, COMPLETED
+  round               Int       @default(0)
+  currentRound        String    @default("preflop") // preflop, flop, turn, river
+  pot                 Int       @default(0)
+  communityCards      String[]
+  currentPlayerPos    Int?
+  dealerPos           Int       @default(0)
+  smallBlindPos       Int       @default(1)
+  bigBlindPos         Int       @default(2)
+  currentRoundMaxBet  Int       @default(0)
+  mainPot             Int       @default(0)
+  sidePots            Json?     // 复杂类型用Json存储 [{amount: Int, playerIds: [String]}]
+  
+  // 游戏设定
+  initialChips        Int       @default(1000)
+  smallBlind          Int       @default(5)
+  bigBlind            Int       @default(10)
+  timeLimit           Int       @default(30)
+  maxPlayers          Int       @default(9)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  players        Player[]
-  messages       Message[]
+  // 关系
+  players             Player[]
+  messages            Message[]
 }
 
 model Player {
@@ -58,6 +77,8 @@ model Player {
   position   Int
   isActive   Boolean  @default(true)
   hasChecked Boolean  @default(false)
+
+  totalRounds Int @default(0)
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
