@@ -25,6 +25,7 @@ class GameManager {
     const gameInstance = new Game({
       gameId: gameRecord.id,
       ...options,
+      onStateChange: () => this.notifyGameStateChange(gameRecord.id),
     });
 
     this.games.set(gameRecord.id, gameInstance);
@@ -63,6 +64,10 @@ class GameManager {
     const player = game.addPlayer(playerData.name, playerRecord.id);
     await this.syncGameState(gameId);
     return player;
+  }
+
+  async notifyGameStateChange(gameId) {
+    await this.syncGameState(gameId);
   }
 
   // get game state

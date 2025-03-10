@@ -45,6 +45,12 @@ export default class Game {
     this.mainPot = 0; // main pot
     this.sidePots = []; // side pots, each side pot contains amount and players
     this.shownCards = new Set(); // players who have shown cards
+
+    this.onStateChange = options.onStateChange || (() => {});
+  }
+
+  triggerStateChange() {
+    this.onStateChange();
   }
 
   determineWinner() {
@@ -98,6 +104,7 @@ export default class Game {
 
     this.isGameInProgress = true;
     this.startNewHand();
+    this.triggerStateChange();
   }
 
   // end game
@@ -110,6 +117,7 @@ export default class Game {
 
     // reset all players' status
     this.players.forEach((player) => player.reset());
+    this.triggerStateChange();
   }
 
   // start a new hand
@@ -186,6 +194,8 @@ export default class Game {
 
     // start betting round
     this.startBettingRound();
+
+    this.triggerStateChange();
   }
 
   addSpectator(name) {
@@ -269,6 +279,7 @@ export default class Game {
     }
     // start new betting round
     this.startBettingRound();
+    this.triggerStateChange();
   }
 
   // deal public cards
@@ -406,7 +417,8 @@ export default class Game {
     this.addMessage("本手牌已结束");
 
     console.log(`Hand ended, currentRound is: ${this.currentRound}`);
-
+    
+    this.triggerStateChange();
     // 设置超时，开始新的一手牌
     this.timeoutId = setTimeout(() => {
       console.log("Starting new hand after timeout");
@@ -1173,6 +1185,7 @@ export default class Game {
       this.addMessage(error.message, playerId);
       throw error;
     }
+    this.triggerStateChange();
   }
 
   // get available actions for a player
@@ -1820,5 +1833,6 @@ export default class Game {
 
     // 通知所有玩家游戏进入等待状态
     this.addMessage("游戏进入等待状态，等待更多玩家加入");
+    this.triggerStateChange();
   }
 }
