@@ -65,7 +65,7 @@ export default class Game {
     }
 
     if (!id || !name) {
-      throw new Error("Player must have an ID and a name"); // 现在 ID 和 name 必须由 joinGame 传入
+      throw new Error("Player must have an ID and a name"); // now ID and name must be provided by joinGame
     }
 
     // check if id already exists
@@ -185,7 +185,13 @@ export default class Game {
     this.inHandPlayers = this.players.filter(
       (player) => player.isActive && !player.isFolded
     );
-
+    
+    // increment total rounds for all active players
+    this.players.forEach((player) => {
+      if (player.isActive) {
+        player.incrementRounds();
+      }
+    });
     // move button position
     this.moveButton();
 

@@ -128,7 +128,7 @@ class GameManager {
             position: player.position,
             isActive: player.isActive,
             hasChecked: player.hasChecked,
-            totalRounds: { increment: 1 },
+            totalRounds: player.totalRounds,
           },
         });
       }

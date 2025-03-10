@@ -27,8 +27,8 @@ describe("Game", () => {
   test("start game need at least 2 players", () => {
     expect(() => game.startGame()).toThrow("Need at least 2 players");
 
-    game.addPlayer("player1");
-    game.addPlayer("player2");
+    game.addPlayer("player1", "player1_id");
+    game.addPlayer("player2", "player2_id");
     expect(() => game.startGame()).not.toThrow();
   });
 

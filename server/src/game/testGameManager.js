@@ -1,4 +1,4 @@
-import GameManager from "../GameManager.js";
+import GameManager from "./GameManager.js";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -19,7 +19,10 @@ async function testGameManager() {
 
     // 2️⃣ 玩家加入游戏（测试游客 & 登录用户）
     console.log("\n🙋 玩家加入游戏...");
-    const player1 = await GameManager.joinGame(game.id, {});
+    const player1 = await GameManager.joinGame(game.id, {
+      name: "测试用户",
+      userId: "1",
+    });
     const player2 = await GameManager.joinGame(game.id, {}); // 游客
 
     console.log("👤 玩家 1:", player1);

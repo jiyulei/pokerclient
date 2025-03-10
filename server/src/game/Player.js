@@ -12,6 +12,7 @@ export default class Player {
     this.position = -1;
     this.totalBet = 0; // total bet amount in all rounds
     this.hasChecked = false;
+    this.totalRounds = 0; // total rounds player has participated
   }
 
   // receive card from deck
@@ -65,6 +66,12 @@ export default class Player {
       position: this.position,
       totalBet: this.totalBet,
       hasChecked: this.hasChecked,
+      totalRounds: this.totalRounds,
     };
+  }
+
+  // increment total rounds
+  incrementRounds() {
+    this.totalRounds += 1;
   }
 }
