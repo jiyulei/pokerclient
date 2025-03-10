@@ -58,8 +58,8 @@ export default class Game {
       throw new Error("Game is full");
     }
 
-    if (!id) {
-      id = `guest_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    if (!id || !name) {
+      throw new Error("Player must have an ID and a name"); // 现在 ID 和 name 必须由 joinGame 传入
     }
 
     // check if id already exists
