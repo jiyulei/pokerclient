@@ -1,10 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "./prisma.js";
 import Game from "./Game.js";
 
 class GameManager {
   constructor() {
     this.games = new Map(); // store game instances, key is gameId
-    this.prisma = new PrismaClient();
+    this.prisma = prisma;
   }
 
   // create new game
