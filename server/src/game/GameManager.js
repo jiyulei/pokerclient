@@ -1,16 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import Game from "./Game.js";
 
-const prisma = new PrismaClient();
-
 class GameManager {
   constructor() {
     this.games = new Map(); // store game instances, key is gameId
+    this.prisma = new PrismaClient();
   }
 
   // create new game
   async createGame(options = {}) {
-    const gameRecord = await prisma.game.create({
+    const gameRecord = await this.prisma.game.create({
       data: {
         status: "WAITING",
         initialChips: options.initialChips || 1000,
@@ -29,7 +28,7 @@ class GameManager {
     });
 
     this.games.set(gameRecord.id, gameInstance);
-    return gameInstance;
+    return gameRecord;
   }
 
   // player join game
@@ -48,16 +47,22 @@ class GameManager {
       .substring(2, 11)}`;
     const playerId = playerData.userId || generatedId;
 
+    // if user is guest, don't write userId to prevent foreign key error
+    const playerDataForDB = {
+      id: playerId,
+      gameId,
+      chips: game.initialChips,
+      position: game.players.length,
+      hand: [],
+    };
+
+    if (playerData.userId) {
+      playerDataForDB.userId = playerData.userId; // only write userId when it exists
+    }
+
     // create player in database
-    const playerRecord = await prisma.player.create({
-      data: {
-        id: playerId, // use generated ID
-        gameId,
-        userId: playerData.userId || null, // only logged in users will have userId
-        chips: game.initialChips,
-        position: game.players.length,
-        hand: [],
-      },
+    const playerRecord = await this.prisma.player.create({
+      data: playerDataForDB,
     });
 
     // add player to game instance
@@ -91,43 +96,44 @@ class GameManager {
     const game = this.games.get(gameId);
     if (!game) throw new Error("Game not found");
 
-    await prisma.game.update({
-      where: { id: gameId },
-      data: {
-        status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
-        round: game.round,
-        pot: game.pot,
-        currentRound: game.currentRound,
-        communityCards: game.communityCards.map((card) => card.toString()),
-        dealerPos: game.dealer,
-        smallBlindPos: game.smallBlindPos,
-        bigBlindPos: game.bigBlindPos,
-        currentPlayerPos: game.currentPlayer,
-        currentRoundMaxBet: game.currentRoundMaxBet,
-        mainPot: game.mainPot,
-        sidePots: game.sidePots,
-      },
-    });
-
-    for (const player of game.players) {
-      await prisma.player.update({
-        where: { id: player.id },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.game.update({
+        where: { id: gameId },
         data: {
-          chips: player.chips,
-          currentBet: player.currentBet,
-          totalBet: player.totalBet,
-          isFolded: player.isFolded,
-          isAllIn: player.isAllIn,
-          hand: player.hand.map((card) => card.toString()),
-          position: player.position,
-          isActive: player.isActive,
-          hasChecked: player.hasChecked,
-          totalRounds: { increment: 1 },
+          status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
+          round: game.round,
+          pot: game.pot,
+          currentRound: game.currentRound,
+          communityCards: game.communityCards.map((card) => card.toString()),
+          dealerPos: game.dealer,
+          smallBlindPos: game.smallBlindPos,
+          bigBlindPos: game.bigBlindPos,
+          currentPlayerPos: game.currentPlayer,
+          currentRoundMaxBet: game.currentRoundMaxBet,
+          mainPot: game.mainPot,
+          sidePots: game.sidePots,
         },
       });
-    }
-  }
 
+      for (const player of game.players) {
+        await tx.player.update({
+          where: { id: player.id },
+          data: {
+            chips: player.chips,
+            currentBet: player.currentBet,
+            totalBet: player.totalBet,
+            isFolded: player.isFolded,
+            isAllIn: player.isAllIn,
+            hand: player.hand.map((card) => card.toString()),
+            position: player.position,
+            isActive: player.isActive,
+            hasChecked: player.hasChecked,
+            totalRounds: { increment: 1 },
+          },
+        });
+      }
+    });
+  }
   // remove game instance
   removeGame(gameId) {
     this.games.delete(gameId);
@@ -138,13 +144,18 @@ class GameManager {
     if (!game) throw new Error("Game not found");
 
     // mark game as completed
-    await prisma.game.update({
+    await this.prisma.game.update({
       where: { id: gameId },
       data: { status: "COMPLETED" },
     });
 
     // remove game from memory
     this.removeGame(gameId);
+  }
+
+  // 添加关闭连接的方法
+  async disconnect() {
+    await this.prisma.$disconnect();
   }
 }
 
