@@ -185,7 +185,7 @@ export default class Game {
     this.inHandPlayers = this.players.filter(
       (player) => player.isActive && !player.isFolded
     );
-    
+
     // increment total rounds for all active players
     this.players.forEach((player) => {
       if (player.isActive) {

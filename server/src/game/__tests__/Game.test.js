@@ -87,6 +87,45 @@ describe("Game", () => {
   // simulate delay environment, call action directly, not wait for real timeout
   jest.useFakeTimers();
 
+  describe.only("Two players", () => {
+    test("Players: call, check then proceed to flop", () => {
+      game = new Game({
+        smallBlind: 10,
+        bigBlind: 20,
+      });
+      // add 3 players
+      game.addPlayer("BB", "p1");
+      game.addPlayer("Dealer/SB", "p2");
+
+      game.startGame();
+      expect(game.currentRoundMaxBet).toBe(20);
+
+      game.handlePlayerAction("p2", "call");
+      game.handlePlayerAction("p1", "check");
+
+      expect(game.currentRound).toBe("flop");
+    });
+
+    test("Players: call, raise, call then proceed to flop", () => {
+      game = new Game({
+        smallBlind: 10,
+        bigBlind: 20,
+      });
+      game.addPlayer("BB", "p1");
+      game.addPlayer("Dealer/SB", "p2");
+      game.startGame();
+      expect(game.currentRoundMaxBet).toBe(20);
+
+      game.handlePlayerAction("p2", "call");
+      game.handlePlayerAction("p1", "raise", 40);
+      game.handlePlayerAction("p2", "call");
+
+      expect(game.currentRound).toBe("flop");
+      expect(game.pot).toBe(120);
+    });
+
+  });
+
   describe("Player Actions Scenarios", () => {
     beforeEach(() => {
       game = new Game({

@@ -28,24 +28,32 @@ async function testGameManager() {
     console.log("👤 玩家 1:", player1);
     console.log("👤 玩家 2:", player2);
 
-    // // 3️⃣ 开始游戏
-    // console.log("\n🚀 开始游戏...");
-    // const gameInstance = GameManager.games.get(game.id);
-    // gameInstance.startGame();
-    // await GameManager.syncGameState(game.id); // 同步到数据库
-    // console.log("✅ 游戏状态:", gameInstance.getGameState());
+    // 3️⃣ 开始游戏
+    console.log("\n🚀 开始游戏...");
+    const gameInstance = GameManager.games.get(game.id);
+    gameInstance.startGame();
+    await GameManager.syncGameState(game.id); // 同步到数据库
+    console.log("✅ 游戏状态:", gameInstance.getGameState());
 
-    // // 4️⃣ 玩家行动
-    // console.log("\n🎭 玩家行动...");
-    // await GameManager.handlePlayerAction(game.id, player1.id, "bet", 50);
-    // await GameManager.handlePlayerAction(game.id, player2.id, "call", 50);
+    // 4️⃣ 玩家行动
+    console.log("\n🎭 玩家行动...");
+    await GameManager.handlePlayerAction(game.id, player2.id, "call");
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
+    await GameManager.handlePlayerAction(game.id, player1.id, "check");
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
     // await GameManager.syncGameState(game.id);
-    // console.log("🎲 下注完成，游戏状态:", gameInstance.getGameState());
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
+    console.log("🎲 下注完成，游戏状态:", gameInstance.getGameState());
 
     // // 5️⃣ 进入下一轮
     // console.log("\n🔄 进入下一轮...");
-    // gameInstance.nextRound();
+    // // gameInstance.nextRound();
+    // await GameManager.handlePlayerAction(game.id, player2.id, "check");
+    // await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
+    // await GameManager.handlePlayerAction(game.id, player1.id, "check");
+    // await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
     // await GameManager.syncGameState(game.id);
+    // await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
     // console.log("📌 进入 Flop 后状态:", gameInstance.getGameState());
 
     // // 6️⃣ 结束游戏

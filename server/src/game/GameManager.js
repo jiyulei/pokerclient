@@ -92,48 +92,89 @@ class GameManager {
   }
 
   // sync game state to database
-  async syncGameState(gameId) {
-    const game = this.games.get(gameId);
-    if (!game) throw new Error("Game not found");
+    async syncGameState(gameId) {
+      const game = this.games.get(gameId);
+      if (!game) throw new Error("Game not found");
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.game.update({
-        where: { id: gameId },
-        data: {
-          status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
-          round: game.round,
-          pot: game.pot,
-          currentRound: game.currentRound,
-          communityCards: game.communityCards.map((card) => card.toString()),
-          dealerPos: game.dealer,
-          smallBlindPos: game.smallBlindPos,
-          bigBlindPos: game.bigBlindPos,
-          currentPlayerPos: game.currentPlayer,
-          currentRoundMaxBet: game.currentRoundMaxBet,
-          mainPot: game.mainPot,
-          sidePots: game.sidePots,
-        },
-      });
-
-      for (const player of game.players) {
-        await tx.player.update({
-          where: { id: player.id },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.game.update({
+          where: { id: gameId },
           data: {
-            chips: player.chips,
-            currentBet: player.currentBet,
-            totalBet: player.totalBet,
-            isFolded: player.isFolded,
-            isAllIn: player.isAllIn,
-            hand: player.hand.map((card) => card.toString()),
-            position: player.position,
-            isActive: player.isActive,
-            hasChecked: player.hasChecked,
-            totalRounds: player.totalRounds,
+            status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
+            round: game.round,
+            pot: game.pot,
+            currentRound: game.currentRound,
+            communityCards: game.communityCards.map((card) => card.toString()),
+            dealerPos: game.dealer,
+            smallBlindPos: game.smallBlindPos,
+            bigBlindPos: game.bigBlindPos,
+            currentPlayerPos: game.currentPlayer,
+            currentRoundMaxBet: game.currentRoundMaxBet,
+            mainPot: game.mainPot,
+            sidePots: game.sidePots,
           },
         });
-      }
-    });
-  }
+
+        for (const player of game.players) {
+          await tx.player.update({
+            where: { id: player.id },
+            data: {
+              chips: player.chips,
+              currentBet: player.currentBet,
+              totalBet: player.totalBet,
+              isFolded: player.isFolded,
+              isAllIn: player.isAllIn,
+              hand: player.hand.map((card) => card.toString()),
+              position: player.position,
+              isActive: player.isActive,
+              hasChecked: player.hasChecked,
+              totalRounds: player.totalRounds,
+            },
+          });
+        }
+      });
+    }
+
+//   async syncGameState(gameId) {
+//     const game = this.games.get(gameId);
+//     if (!game) throw new Error("Game not found");
+
+//     await this.prisma.game.update({
+//       where: { id: gameId },
+//       data: {
+//         status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
+//         round: game.round,
+//         pot: game.pot,
+//         currentRound: game.currentRound,
+//         communityCards: game.communityCards.map((card) => card.toString()),
+//         dealerPos: game.dealer,
+//         smallBlindPos: game.smallBlindPos,
+//         bigBlindPos: game.bigBlindPos,
+//         currentPlayerPos: game.currentPlayer,
+//         currentRoundMaxBet: game.currentRoundMaxBet,
+//         mainPot: game.mainPot,
+//         sidePots: game.sidePots,
+//       },
+//     });
+
+//     for (const player of game.players) {
+//       await this.prisma.player.update({
+//         where: { id: player.id },
+//         data: {
+//           chips: player.chips,
+//           currentBet: player.currentBet,
+//           totalBet: player.totalBet,
+//           isFolded: player.isFolded,
+//           isAllIn: player.isAllIn,
+//           hand: player.hand.map((card) => card.toString()),
+//           position: player.position,
+//           isActive: player.isActive,
+//           hasChecked: player.hasChecked,
+//           totalRounds: player.totalRounds, // 暂时手动控制
+//         },
+//       });
+//     }
+//   }
   // remove game instance
   removeGame(gameId) {
     this.games.delete(gameId);
