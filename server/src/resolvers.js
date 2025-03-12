@@ -58,6 +58,11 @@ const resolvers = {
       pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: game });
       return game;
     },
+    joinGame: async (_, { gameId, name, userId }) => {
+      const player = await GameManager.joinGame(gameId, { name, userId });
+      pubsub.publish("PLAYER_STATE_CHANGED", { playerStateChanged: player });
+      return player;
+    },
   },
   Subscription: {
     bookAdded: {
