@@ -1,11 +1,23 @@
-// 在项目根目录创建 prisma.js
 import { PrismaClient } from "@prisma/client";
 
-const prisma = global.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") global.prisma = prisma;
+// 添加这些选项可以帮助调试
+const prismaClientSingleton = () => {
+  return new PrismaClient({
+    log: ["error", "warn"],
+    errorFormat: "pretty",
+  });
+};
+
+// 确保使用正确的全局对象
+const globalForPrisma = global;
+
+// 使用类型检查和明确的赋值
+const prisma = globalForPrisma.prisma ?? prismaClientSingleton();
+
+// 只在非生产环境缓存实例
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 export default prisma;
-
 
 //   const resolvers = {
 //      Mutation: {

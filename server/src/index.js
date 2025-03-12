@@ -9,7 +9,20 @@ import { makeExecutableSchema } from "@graphql-tools/schema";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import typeDefs from "./schema.js";
 import resolvers from "./resolvers.js";
+import GameManager from "./game/GameManager.js";
 
+// 在这里添加进程退出处理代码
+process.on("SIGINT", async () => {
+  console.log("正在关闭服务器...");
+  await GameManager.disconnect();
+  process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+  console.log("正在关闭服务器...");
+  await GameManager.disconnect();
+  process.exit(0);
+});
 
 const schema = makeExecutableSchema({ typeDefs, resolvers });
 
@@ -26,7 +39,7 @@ const wsServer = new WebSocketServer({
 
 const serverCleanup = useServer({ schema }, wsServer);
 
-// Todo: add context for prisma/用户认证    
+// Todo: add context for prisma/用户认证
 const server = new ApolloServer({
   schema,
   plugins: [
@@ -43,12 +56,19 @@ const server = new ApolloServer({
   ],
 });
 
-server.start().then(() => {
-  app.use("/graphql", expressMiddleware(server));
-  const PORT = process.env.PORT || 4000;
+// 先初始化 GameManager，然后再启动 Apollo Server
+GameManager.init()
+  .then(async () => {
+    await server.start();
 
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 Server ready at: http://localhost:${PORT}`);
-    console.log(`🚀 Subscriptions ready at ws://localhost:${PORT}/graphql`);
+    app.use("/graphql", expressMiddleware(server));
+    const PORT = process.env.PORT || 4000;
+
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 Server ready at: http://localhost:${PORT}`);
+      console.log(`🚀 Subscriptions ready at ws://localhost:${PORT}/graphql`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ Failed to initialize GameManager:", err);
   });
-});

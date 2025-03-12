@@ -71,6 +71,15 @@ const resolvers = {
     gameStateChanged: {
       subscribe: () => pubsub.asyncIterableIterator(["GAME_STATE_CHANGED"]),
     },
+    playerStateChanged: {
+      subscribe: () => pubsub.asyncIterableIterator(["PLAYER_STATE_CHANGED"]),
+    },
+  },
+  Game: {
+    players: async (parent) => {
+      if (parent.players) return parent.players;
+      return prisma.player.findMany({ where: { gameId: parent.id } });
+    },
   },
 };
 

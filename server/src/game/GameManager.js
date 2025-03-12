@@ -7,6 +7,71 @@ class GameManager {
     this.prisma = prisma;
   }
 
+  // 初始化函数，从数据库恢复内存中的游戏实例
+  async init() {
+    const MAX_RETRIES = 3;
+    let retries = 0;
+
+    while (retries < MAX_RETRIES) {
+      try {
+        const activeGames = await this.prisma.game.findMany({
+          where: {
+            status: { in: ["WAITING", "IN_PROGRESS"] },
+          },
+          include: {
+            players: true,
+          },
+        });
+
+        for (const gameRecord of activeGames) {
+          const gameInstance = new Game({
+            gameId: gameRecord.id,
+            initialChips: gameRecord.initialChips,
+            smallBlind: gameRecord.smallBlind,
+            bigBlind: gameRecord.bigBlind,
+            maxPlayers: gameRecord.maxPlayers,
+            timeLimit: gameRecord.timeLimit,
+            onStateChange: () => this.notifyGameStateChange(gameRecord.id),
+          });
+
+          // 恢复玩家到内存实例
+          for (const playerRecord of gameRecord.players) {
+            gameInstance.addPlayer(
+              playerRecord.name || "Guest",
+              playerRecord.id
+            );
+          }
+
+          this.games.set(gameRecord.id, gameInstance);
+        }
+
+        console.log(
+          `✅ GameManager initialized with ${activeGames.length} active games.`
+        );
+        return;
+      } catch (error) {
+        retries++;
+
+        if (
+          error.message.includes("prepared statement") &&
+          retries < MAX_RETRIES
+        ) {
+          console.log(
+            `⚠️ 数据库连接错误，正在重试 (${retries}/${MAX_RETRIES})...`
+          );
+          // 断开连接并等待一段时间
+          await this.prisma.$disconnect();
+          await new Promise((resolve) => setTimeout(resolve, 500 * retries));
+          continue;
+        }
+
+        // 如果不是连接错误或已达到最大重试次数，抛出错误
+        console.error(`❌ 初始化失败 (尝试 ${retries}/${MAX_RETRIES}):`, error);
+        throw error;
+      }
+    }
+  }
+
   // create new game
   async createGame(options = {}) {
     const gameRecord = await this.prisma.game.create({
@@ -92,89 +157,89 @@ class GameManager {
   }
 
   // sync game state to database
-    async syncGameState(gameId) {
-      const game = this.games.get(gameId);
-      if (!game) throw new Error("Game not found");
+  async syncGameState(gameId) {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error("Game not found");
 
-      await this.prisma.$transaction(async (tx) => {
-        await tx.game.update({
-          where: { id: gameId },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.game.update({
+        where: { id: gameId },
+        data: {
+          status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
+          round: game.round,
+          pot: game.pot,
+          currentRound: game.currentRound,
+          communityCards: game.communityCards.map((card) => card.toString()),
+          dealerPos: game.dealer,
+          smallBlindPos: game.smallBlindPos,
+          bigBlindPos: game.bigBlindPos,
+          currentPlayerPos: game.currentPlayer,
+          currentRoundMaxBet: game.currentRoundMaxBet,
+          mainPot: game.mainPot,
+          sidePots: game.sidePots,
+        },
+      });
+
+      for (const player of game.players) {
+        await tx.player.update({
+          where: { id: player.id },
           data: {
-            status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
-            round: game.round,
-            pot: game.pot,
-            currentRound: game.currentRound,
-            communityCards: game.communityCards.map((card) => card.toString()),
-            dealerPos: game.dealer,
-            smallBlindPos: game.smallBlindPos,
-            bigBlindPos: game.bigBlindPos,
-            currentPlayerPos: game.currentPlayer,
-            currentRoundMaxBet: game.currentRoundMaxBet,
-            mainPot: game.mainPot,
-            sidePots: game.sidePots,
+            chips: player.chips,
+            currentBet: player.currentBet,
+            totalBet: player.totalBet,
+            isFolded: player.isFolded,
+            isAllIn: player.isAllIn,
+            hand: player.hand.map((card) => card.toString()),
+            position: player.position,
+            isActive: player.isActive,
+            hasChecked: player.hasChecked,
+            totalRounds: player.totalRounds,
           },
         });
+      }
+    });
+  }
 
-        for (const player of game.players) {
-          await tx.player.update({
-            where: { id: player.id },
-            data: {
-              chips: player.chips,
-              currentBet: player.currentBet,
-              totalBet: player.totalBet,
-              isFolded: player.isFolded,
-              isAllIn: player.isAllIn,
-              hand: player.hand.map((card) => card.toString()),
-              position: player.position,
-              isActive: player.isActive,
-              hasChecked: player.hasChecked,
-              totalRounds: player.totalRounds,
-            },
-          });
-        }
-      });
-    }
+  //   async syncGameState(gameId) {
+  //     const game = this.games.get(gameId);
+  //     if (!game) throw new Error("Game not found");
 
-//   async syncGameState(gameId) {
-//     const game = this.games.get(gameId);
-//     if (!game) throw new Error("Game not found");
+  //     await this.prisma.game.update({
+  //       where: { id: gameId },
+  //       data: {
+  //         status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
+  //         round: game.round,
+  //         pot: game.pot,
+  //         currentRound: game.currentRound,
+  //         communityCards: game.communityCards.map((card) => card.toString()),
+  //         dealerPos: game.dealer,
+  //         smallBlindPos: game.smallBlindPos,
+  //         bigBlindPos: game.bigBlindPos,
+  //         currentPlayerPos: game.currentPlayer,
+  //         currentRoundMaxBet: game.currentRoundMaxBet,
+  //         mainPot: game.mainPot,
+  //         sidePots: game.sidePots,
+  //       },
+  //     });
 
-//     await this.prisma.game.update({
-//       where: { id: gameId },
-//       data: {
-//         status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
-//         round: game.round,
-//         pot: game.pot,
-//         currentRound: game.currentRound,
-//         communityCards: game.communityCards.map((card) => card.toString()),
-//         dealerPos: game.dealer,
-//         smallBlindPos: game.smallBlindPos,
-//         bigBlindPos: game.bigBlindPos,
-//         currentPlayerPos: game.currentPlayer,
-//         currentRoundMaxBet: game.currentRoundMaxBet,
-//         mainPot: game.mainPot,
-//         sidePots: game.sidePots,
-//       },
-//     });
-
-//     for (const player of game.players) {
-//       await this.prisma.player.update({
-//         where: { id: player.id },
-//         data: {
-//           chips: player.chips,
-//           currentBet: player.currentBet,
-//           totalBet: player.totalBet,
-//           isFolded: player.isFolded,
-//           isAllIn: player.isAllIn,
-//           hand: player.hand.map((card) => card.toString()),
-//           position: player.position,
-//           isActive: player.isActive,
-//           hasChecked: player.hasChecked,
-//           totalRounds: player.totalRounds, // 暂时手动控制
-//         },
-//       });
-//     }
-//   }
+  //     for (const player of game.players) {
+  //       await this.prisma.player.update({
+  //         where: { id: player.id },
+  //         data: {
+  //           chips: player.chips,
+  //           currentBet: player.currentBet,
+  //           totalBet: player.totalBet,
+  //           isFolded: player.isFolded,
+  //           isAllIn: player.isAllIn,
+  //           hand: player.hand.map((card) => card.toString()),
+  //           position: player.position,
+  //           isActive: player.isActive,
+  //           hasChecked: player.hasChecked,
+  //           totalRounds: player.totalRounds, // 暂时手动控制
+  //         },
+  //       });
+  //     }
+  //   }
   // remove game instance
   removeGame(gameId) {
     this.games.delete(gameId);

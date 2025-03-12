@@ -33,7 +33,7 @@ const typeDefs = gql`
 
   type Player {
     id: ID!
-    name: String!
+    name: String
     chips: Int!
     currentBet: Int!
     totalBet: Int!
