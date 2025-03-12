@@ -63,6 +63,20 @@ const resolvers = {
       pubsub.publish("PLAYER_STATE_CHANGED", { playerStateChanged: player });
       return player;
     },
+    startGame: async (_, { gameId }) => {
+      const game = GameManager.games.get(gameId);
+      if (!game) throw new Error("Game not found");
+      game.startGame();
+      await GameManager.syncGameState(gameId);
+
+      const updatedGame = await prisma.game.findUnique({
+        where: { id: gameId },
+        include: { players: true },
+      });
+
+      pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: updatedGame });
+      return updatedGame;
+    },
   },
   Subscription: {
     bookAdded: {
