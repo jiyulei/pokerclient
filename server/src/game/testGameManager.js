@@ -1,7 +1,5 @@
 import GameManager from "./GameManager.js";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "./prisma.js";
 
 async function testGameManager() {
   try {
@@ -77,4 +75,4 @@ async function testGameManager() {
 }
 
 // 运行测试
-testGameManager();
+// testGameManager();
