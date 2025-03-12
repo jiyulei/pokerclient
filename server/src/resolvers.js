@@ -1,8 +1,6 @@
 // Todo: romove console.log and error handling
-import { PrismaClient } from "@prisma/client";
 import { PubSub } from "graphql-subscriptions";
-
-const prisma = new PrismaClient();
+import prisma from "./game/prisma.js";
 
 const pubsub = new PubSub();
 
@@ -17,6 +15,27 @@ const resolvers = {
         console.error("❌ Prisma 查询失败:", error);
         throw new Error("数据库查询失败");
       }
+    },
+    game: async (_, { id }) => {
+      const game = await prisma.game.findUnique({
+        where: { id },
+        include: { players: true },
+      });
+      return game;
+    },
+    games: async () => {
+      const games = await prisma.game.findMany({
+        include: { players: true },
+      });
+      return games;
+    },
+    player: async (_, { id }) => {
+      const player = await prisma.player.findUnique({ where: { id } });
+      return player;
+    },
+    players: async (_, { gameId }) => {
+      const players = await prisma.player.findMany({ where: { gameId } });
+      return players;
     },
   },
   Subscription: {
