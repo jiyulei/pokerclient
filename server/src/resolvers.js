@@ -1,6 +1,7 @@
 // Todo: romove console.log and error handling
 import { PubSub } from "graphql-subscriptions";
 import prisma from "./game/prisma.js";
+import GameManager from "./game/GameManager.js";
 
 const pubsub = new PubSub();
 
@@ -38,11 +39,6 @@ const resolvers = {
       return players;
     },
   },
-  Subscription: {
-    bookAdded: {
-      subscribe: () => pubsub.asyncIterableIterator(["BOOK_ADDED"]),
-    },
-  },
   Mutation: {
     addBook: async (_, { title, author }) => {
       try {
@@ -56,6 +52,19 @@ const resolvers = {
         console.error("❌ Prisma 插入失败:", error);
         throw new Error("插入失败");
       }
+    },
+    createGame: async (_, args) => {
+      const game = await GameManager.createGame(args);
+      pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: game });
+      return game;
+    },
+  },
+  Subscription: {
+    bookAdded: {
+      subscribe: () => pubsub.asyncIterableIterator(["BOOK_ADDED"]),
+    },
+    gameStateChanged: {
+      subscribe: () => pubsub.asyncIterableIterator(["GAME_STATE_CHANGED"]),
     },
   },
 };
