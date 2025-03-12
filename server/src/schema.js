@@ -7,81 +7,108 @@ const typeDefs = gql`
     author: String
   }
 
-  type Query {
-    books: [Book]
-    getGameState(tableId: ID!, playerId: ID): GameState
-    getAvailableTables: [ID!]!
-  }
-
-  type Mutation {
-    addBook(title: String!, author: String!): Book
-    joinTable(tableId: ID!, playerName: String!, playerId: ID): Player!
-    leaveTable(tableId: ID!, playerId: ID!): Boolean!
-    startGame(tableId: ID!): Boolean!
-    playerAction(
-      tableId: ID!
-      playerId: ID!
-      action: String!
-      amount: Int
-    ): Boolean!
-    spectateTable(tableId: ID!, spectatorName: String!): Boolean!
-    stopSpectating(tableId: ID!, spectatorName: String!): Boolean!
-  }
-
-  type Subscription {
-    bookAdded: Book
-    gameStateUpdated(tableId: ID!, playerId: ID): GameState
-    playerJoined(tableId: ID!): Player
-    playerLeft(tableId: ID!): ID
-    gameStarted(tableId: ID!): Boolean
-    playerTurn(tableId: ID!, playerId: ID!): Boolean
+  type Game {
+    id: ID!
+    status: String!
+    round: Int!
+    currentRound: String
+    pot: Int!
+    communityCards: [String!]!
+    currentPlayerPos: Int
+    dealerPos: Int
+    smallBlindPos: Int
+    bigBlindPos: Int
+    currentRoundMaxBet: Int
+    mainPot: Int
+    sidePots: [Int!]
+    initialChips: Int!
+    smallBlind: Int!
+    bigBlind: Int!
+    timeLimit: Int!
+    maxPlayers: Int!
+    players: [Player!]!
+    createdAt: String!
+    updatedAt: String!
   }
 
   type Player {
     id: ID!
     name: String!
     chips: Int!
+    currentBet: Int!
+    totalBet: Int!
+    isFolded: Boolean!
+    isAllIn: Boolean!
+    hand: [String!]!
     position: Int!
-    cards: [Card]
-    bet: Int!
-    folded: Boolean!
-    allIn: Boolean!
-    isDealer: Boolean!
-    isSmallBlind: Boolean!
-    isBigBlind: Boolean!
-    isCurrentPlayer: Boolean!
-  }
-
-  type Card {
-    suit: String!
-    rank: String!
-    code: String!
-  }
-
-  type GameState {
-    tableId: ID!
-    players: [Player!]!
-    communityCards: [Card!]!
-    pot: Int!
-    currentRound: String!
-    currentPlayer: Player
-    dealerPosition: Int!
-    smallBlindPosition: Int!
-    bigBlindPosition: Int!
-    smallBlindAmount: Int!
-    bigBlindAmount: Int!
-    isGameInProgress: Boolean!
-    isWaiting: Boolean!
-    messages: [Message!]!
-    availableActions: [String!]
-    minimumBet: Int
+    isActive: Boolean!
+    hasChecked: Boolean!
+    totalRounds: Int!
   }
 
   type Message {
     id: ID!
-    text: String!
+    content: String!
     timestamp: String!
+    type: String!
     playerId: ID
+  }
+
+  type Game {
+    id: ID!
+    status: String!
+    round: Int!
+    currentRound: String
+    pot: Int!
+    communityCards: [String!]!
+    currentPlayerPos: Int
+    dealerPos: Int
+    smallBlindPos: Int
+    bigBlindPos: Int
+    currentRoundMaxBet: Int
+    mainPot: Int
+    sidePots: [Int!]
+    initialChips: Int!
+    smallBlind: Int!
+    bigBlind: Int!
+    timeLimit: Int!
+    maxPlayers: Int!
+    players: [Player!]!
+    createdAt: String!
+    updatedAt: String!
+  }
+
+  type Query {
+    books: [Book]
+    game(id: ID!): Game
+    games: [Game!]!
+    player(id: ID!): Player
+    players(gameId: ID!): [Player!]!
+  }
+
+  type Mutation {
+    addBook(title: String!, author: String!): Book
+    createGame(
+      initialChips: Int
+      smallBlind: Int
+      bigBlind: Int
+      maxPlayers: Int
+    ): Game!
+    joinGame(gameId: ID!, name: String, userId: String): Player!
+    startGame(gameId: ID!): Game!
+    playerAction(
+      gameId: ID!
+      playerId: ID!
+      action: String!
+      amount: Int
+    ): Game!
+    endGame(gameId: ID!): Game!
+  }
+
+  type Subscription {
+    bookAdded: Book
+    gameStateChanged(gameId: ID!): Game!
+    playerStateChanged(gameId: ID!, playerId: ID!): Player!
   }
 `;
 
