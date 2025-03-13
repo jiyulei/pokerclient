@@ -87,6 +87,16 @@ const resolvers = {
       pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: updatedGame });
       return updatedGame;
     },
+    playerAction: async (_, { gameId, playerId, action, amount }) => {
+      await GameManager.handlePlayerAction(gameId, playerId, action, amount);
+      const updatedGame = await prisma.game.findUnique({
+        where: { id: gameId },
+        include: { players: true },
+      });
+
+      pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: updatedGame });
+      return updatedGame;
+    },
     endGame: async (_, { gameId }) => {
       await GameManager.endGame(gameId);
       const game = await prisma.game.findUnique({

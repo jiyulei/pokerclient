@@ -70,6 +70,7 @@ const typeDefs = gql`
       smallBlind: Int
       bigBlind: Int
       maxPlayers: Int
+      timeLimit: Int
     ): Game!
     joinGame(gameId: ID!, name: String, userId: String): Player!
     startGame(gameId: ID!): Game!
