@@ -17,12 +17,22 @@ const resolvers = {
         throw new Error("数据库查询失败");
       }
     },
-    game: async (_, { id }) => {
+    game: async (_, { id, playerId }) => {
       const game = await prisma.game.findUnique({
         where: { id },
         include: { players: true },
       });
-      return game;
+      if (!game) throw new Error("Game not found");
+
+      const gameInstance = GameManager.games.get(id);
+      if (!gameInstance) throw new Error("Game instance not found in memory");
+
+      let gameState = gameInstance.getGameState(playerId);
+
+      return {
+        ...game,
+        availableActions: playerId ? gameState.availableActions : [],
+      };
     },
     games: async () => {
       const games = await prisma.game.findMany({

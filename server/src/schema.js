@@ -29,6 +29,7 @@ const typeDefs = gql`
     players: [Player!]!
     createdAt: String!
     updatedAt: String!
+    availableActions: [String!]
   }
 
   type Player {
@@ -54,33 +55,9 @@ const typeDefs = gql`
     playerId: ID
   }
 
-  type Game {
-    id: ID!
-    status: String!
-    round: Int!
-    currentRound: String
-    pot: Int!
-    communityCards: [String!]!
-    currentPlayerPos: Int
-    dealerPos: Int
-    smallBlindPos: Int
-    bigBlindPos: Int
-    currentRoundMaxBet: Int
-    mainPot: Int
-    sidePots: [Int!]
-    initialChips: Int!
-    smallBlind: Int!
-    bigBlind: Int!
-    timeLimit: Int!
-    maxPlayers: Int!
-    players: [Player!]!
-    createdAt: String!
-    updatedAt: String!
-  }
-
   type Query {
     books: [Book]
-    game(id: ID!): Game
+    game(id: ID!, playerId: ID): Game
     games: [Game!]!
     player(id: ID!): Player
     players(gameId: ID!): [Player!]!
