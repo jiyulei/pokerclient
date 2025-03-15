@@ -23,6 +23,6 @@ export default function RootLayout({
           <main>{children}</main>
         </ApolloProvider>
       </body>
-    </html> 
+    </html>
   );
 }

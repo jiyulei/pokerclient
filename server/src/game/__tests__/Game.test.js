@@ -1218,7 +1218,7 @@ describe("Game", () => {
       expect(game.smallBlindPos).toBe(game.dealer);
       expect(game.bigBlindPos).toBe((game.dealer + 1) % 2);
     });
-    test.only("Test leave game", () => {
+    test("Test leave game", () => {
       game.addPlayer("Player1", "p1");
       game.addPlayer("Player2", "p2");
       game.addPlayer("Player3", "p3");

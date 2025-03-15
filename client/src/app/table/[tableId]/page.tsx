@@ -9,32 +9,31 @@ interface TablePageProps {
 
 // 随机名字生成函数
 const generateRandomName = () => {
-   const adjectives = [
-     "Happy",
-     "Brave",
-     "Smart",
-     "Lucky",
-     "Mysterious",
-     "Calm",
-     "Energetic",
-     "Friendly",
-     "Cautious",
-     "Witty",
-   ];
+  const adjectives = [
+    "Happy",
+    "Brave",
+    "Smart",
+    "Lucky",
+    "Mysterious",
+    "Calm",
+    "Energetic",
+    "Friendly",
+    "Cautious",
+    "Witty",
+  ];
 
-   const nouns = [
-     "Tiger",
-     "Fox",
-     "Eagle",
-     "Wolf",
-     "Panda",
-     "Dolphin",
-     "Hawk",
-     "Lion",
-     "Otter",
-     "Rabbit",
-   ];
-
+  const nouns = [
+    "Tiger",
+    "Fox",
+    "Eagle",
+    "Wolf",
+    "Panda",
+    "Dolphin",
+    "Hawk",
+    "Lion",
+    "Otter",
+    "Rabbit",
+  ];
 
   const randomAdjective =
     adjectives[Math.floor(Math.random() * adjectives.length)];
