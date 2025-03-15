@@ -78,6 +78,7 @@ model Player {
   position   Int
   isActive   Boolean  @default(true)
   hasChecked Boolean  @default(false)
+  markedForRemoval Boolean @default(false)
 
   totalRounds Int @default(0)
 

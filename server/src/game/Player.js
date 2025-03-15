@@ -13,6 +13,7 @@ export default class Player {
     this.totalBet = 0; // total bet amount in all rounds
     this.hasChecked = false;
     this.totalRounds = 0; // total rounds player has participated
+    this.markedForRemoval = false; // 标记玩家是否将要被移除
   }
 
   // receive card from deck
@@ -67,6 +68,7 @@ export default class Player {
       totalBet: this.totalBet,
       hasChecked: this.hasChecked,
       totalRounds: this.totalRounds,
+      markedForRemoval: this.markedForRemoval,
     };
   }
 

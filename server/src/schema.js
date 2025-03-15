@@ -47,6 +47,7 @@ const typeDefs = gql`
     isActive: Boolean!
     hasChecked: Boolean!
     totalRounds: Int!
+    markedForRemoval: Boolean
   }
 
   type Message {
@@ -83,12 +84,33 @@ const typeDefs = gql`
       amount: Int
     ): Game!
     endGame(gameId: ID!): Game!
+    leaveGame(gameId: ID!, playerId: ID!): Game!
   }
 
   type Subscription {
     bookAdded: Book
-    gameStateChanged(gameId: ID!): Game!
+    gameStateChanged(gameId: ID!, playerId: ID): GameState!
     playerStateChanged(gameId: ID!, playerId: ID!): Player!
+  }
+
+  type GameState {
+    id: ID!
+    status: String!
+    round: Int!
+    currentRound: String
+    pot: Int!
+    communityCards: [String!]!
+    currentPlayerPos: Int
+    dealerPos: Int
+    smallBlindPos: Int
+    bigBlindPos: Int
+    currentRoundMaxBet: Int
+    mainPot: Int
+    sidePots: [Int!]
+    players: [Player!]!
+    availableActions: [String!]
+    messages: [Message!]
+    isYourTurn: Boolean
   }
 `;
 

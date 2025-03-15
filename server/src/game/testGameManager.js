@@ -12,36 +12,39 @@ async function testGameManager() {
       smallBlind: 5,
       bigBlind: 10,
       maxPlayers: 6,
+      timeLimit: 1000,
     });
     console.log("🆕 新游戏创建成功:", game);
 
     // 2️⃣ 玩家加入游戏（测试游客 & 登录用户）
     console.log("\n🙋 玩家加入游戏...");
-    const player1 = await GameManager.joinGame(game.id, {
-      name: "测试用户",
-      userId: "1",
-    });
+    const player1 = await GameManager.joinGame(game.id, {});
     const player2 = await GameManager.joinGame(game.id, {}); // 游客
+    const player3 = await GameManager.joinGame(game.id, {}); // 游客
 
     console.log("👤 玩家 1:", player1);
     console.log("👤 玩家 2:", player2);
-
+    console.log("👤 玩家 3:", player3);
     // 3️⃣ 开始游戏
     console.log("\n🚀 开始游戏...");
+
     const gameInstance = GameManager.games.get(game.id);
+    await GameManager.leaveGame(game.id, player2.id);
     gameInstance.startGame();
     await GameManager.syncGameState(game.id); // 同步到数据库
-    console.log("✅ 游戏状态:", gameInstance.getGameState());
+    console.log("✅ 游戏状态:", gameInstance.getGameState(player1.id));
+    console.log("✅ 游戏状态:", gameInstance.getGameState(player2.id));
+    console.log("✅ 游戏状态:", gameInstance.getGameState(player3.id));
 
     // 4️⃣ 玩家行动
-    console.log("\n🎭 玩家行动...");
-    await GameManager.handlePlayerAction(game.id, player2.id, "call");
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
-    await GameManager.handlePlayerAction(game.id, player1.id, "check");
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
-    // await GameManager.syncGameState(game.id);
-    await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
-    console.log("🎲 下注完成，游戏状态:", gameInstance.getGameState());
+    // console.log("\n🎭 玩家行动...");
+    // await GameManager.handlePlayerAction(game.id, player2.id, "call");
+    // await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
+    // await GameManager.handlePlayerAction(game.id, player1.id, "check");
+    // await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
+    // // await GameManager.syncGameState(game.id);
+    // await new Promise((resolve) => setTimeout(resolve, 1000)); // 等待1秒
+    // console.log("🎲 下注完成，游戏状态:", gameInstance.getGameState());
 
     // // 5️⃣ 进入下一轮
     // console.log("\n🔄 进入下一轮...");
@@ -75,4 +78,4 @@ async function testGameManager() {
 }
 
 // 运行测试
-// testGameManager();
+testGameManager();

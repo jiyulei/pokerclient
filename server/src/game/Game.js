@@ -78,13 +78,6 @@ export default class Game {
     this.players.push(player);
     this.activePlayerCount++;
 
-    // 如果游戏处于等待状态且现在有足够的玩家，重新开始游戏
-    if (this.isWaiting && this.players.length >= 2 && this.isGameInProgress) {
-      console.log("New player joined, resuming game");
-      this.isWaiting = false;
-      this.startNewHand();
-    }
-
     return player;
   }
 
@@ -123,6 +116,20 @@ export default class Game {
   // start a new hand
   startNewHand() {
     console.log("startNewHand called, starting a new hand");
+
+    // 移除标记为将要离开的玩家
+    const playersToRemove = this.players
+      .filter((p) => p.markedForRemoval)
+      .map((p) => p.id);
+    if (playersToRemove.length > 0) {
+      playersToRemove.forEach((id) => {
+        const player = this.findPlayerById(id);
+        if (player) {
+          this.addMessage(`${player.name} 已离开游戏`);
+          this.removePlayer(id);
+        }
+      });
+    }
 
     if (!this.isGameInProgress) {
       throw new Error("Game has not been started");
@@ -423,7 +430,7 @@ export default class Game {
     this.addMessage("本手牌已结束");
 
     console.log(`Hand ended, currentRound is: ${this.currentRound}`);
-    
+
     this.triggerStateChange();
     // 设置超时，开始新的一手牌
     this.timeoutId = setTimeout(() => {
@@ -648,8 +655,10 @@ export default class Game {
 
   // remove player
   removePlayer(playerId) {
+    console.log(`尝试移除玩家 ${playerId}`);
     const player = this.findPlayerById(playerId);
     if (player) {
+      console.log(`找到玩家 ${player.name} (${playerId})`);
       // send message to the removed player
       this.addMessage(
         `You have been removed from the game due to insufficient chips`,
@@ -657,10 +666,24 @@ export default class Game {
       );
       // broadcast message to other players
       this.addMessage(`Player ${player.name} has left the game`);
+    } else {
+      console.log(`找不到玩家 ${playerId}`);
     }
+
+    // 移除前的玩家列表
+    console.log(
+      `移除前玩家列表:`,
+      this.players.map((p) => p.id)
+    );
 
     // remove player from players list
     this.players = this.players.filter((player) => player.id !== playerId);
+
+    // 移除后的玩家列表
+    console.log(
+      `移除后玩家列表:`,
+      this.players.map((p) => p.id)
+    );
 
     // reassign positions
     this.players.forEach((player, index) => {
@@ -672,6 +695,9 @@ export default class Game {
 
     // update active players list
     this.updateActivePlayers();
+
+    // 触发游戏状态更新
+    this.triggerStateChange();
   }
 
   // add message method
@@ -1840,5 +1866,17 @@ export default class Game {
     // 通知所有玩家游戏进入等待状态
     this.addMessage("游戏进入等待状态，等待更多玩家加入");
     this.triggerStateChange();
+  }
+
+  // 标记玩家为将要离开状态
+  markPlayerForRemoval(playerId) {
+    const player = this.findPlayerById(playerId);
+    if (player) {
+      player.markedForRemoval = true;
+      this.addMessage(`${player.name} 将在本手牌结束后离开游戏`);
+      this.triggerStateChange();
+      return true;
+    }
+    return false;
   }
 }

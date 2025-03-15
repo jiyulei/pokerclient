@@ -138,12 +138,9 @@ class GameManager {
 
   async notifyGameStateChange(gameId) {
     const game = this.games.get(gameId);
-    if (!game) throw new Error("Game not found"); 
+    if (!game) throw new Error("Game not found");
 
-    const gameState = game.getGameState();
     await this.syncGameState(gameId);
-
-    PubSub.publish("GAME_STATE_CHANGE", { gameStateChanged: gameState });
   }
 
   // get game state
@@ -200,6 +197,7 @@ class GameManager {
             isActive: player.isActive,
             hasChecked: player.hasChecked,
             totalRounds: player.totalRounds,
+            markedForRemoval: player.markedForRemoval,
           },
         });
       }
@@ -268,6 +266,57 @@ class GameManager {
   // 添加关闭连接的方法
   async disconnect() {
     await this.prisma.$disconnect();
+  }
+
+  // 处理玩家离开游戏
+  async leaveGame(gameId, playerId) {
+    const gameInstance = this.games.get(gameId);
+    if (!gameInstance) {
+      throw new Error("游戏不存在");
+    }
+
+    // 获取游戏当前状态
+    const isGameInProgress = gameInstance.isGameInProgress;
+
+    if (!isGameInProgress || gameInstance.isWaiting) {
+      // 游戏等待中或未开始，直接移除玩家
+      gameInstance.markPlayerForRemoval(playerId);
+      // gameInstance.removePlayer(playerId);
+
+      console.log(`玩家 ${playerId} 已从等待中的游戏移除`);
+    } else {
+      // 游戏进行中
+      const player = gameInstance.findPlayerById(playerId);
+
+      if (!player) {
+        throw new Error("玩家不存在");
+      }
+
+      // 如果玩家当前可以行动且未弃牌，执行fold
+      if (!player.isFolded && gameInstance.currentPlayer === player.position) {
+        try {
+          // 执行 fold 操作
+          await this.handlePlayerAction(gameId, playerId, "fold");
+          console.log(`玩家 ${playerId} 执行了fold操作`);
+        } catch (error) {
+          console.error(`玩家 ${playerId} fold操作失败:`, error);
+          // 即使fold失败，我们仍然标记玩家为将要离开
+        }
+      }
+
+      // 标记玩家为"将要离开"状态
+      gameInstance.markPlayerForRemoval(playerId);
+      console.log(`玩家 ${playerId} 已标记为将在本手牌结束后离开`);
+    }
+
+    // 同步游戏状态到数据库
+    await this.syncGameState(gameId);
+
+    // 返回更新后的游戏
+    return await this.prisma.game.findUnique({
+      where: { id: gameId },
+      include: { players: true },
+    });
   }
 }
 

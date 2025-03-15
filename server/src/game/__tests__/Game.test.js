@@ -87,7 +87,7 @@ describe("Game", () => {
   // simulate delay environment, call action directly, not wait for real timeout
   jest.useFakeTimers();
 
-  describe.only("Two players", () => {
+  describe("Two players", () => {
     test("Players: call, check then proceed to flop", () => {
       game = new Game({
         smallBlind: 10,
@@ -1217,6 +1217,21 @@ describe("Game", () => {
       // In 2-player game, dealer is also small blind
       expect(game.smallBlindPos).toBe(game.dealer);
       expect(game.bigBlindPos).toBe((game.dealer + 1) % 2);
+    });
+    test.only("Test leave game", () => {
+      game.addPlayer("Player1", "p1");
+      game.addPlayer("Player2", "p2");
+      game.addPlayer("Player3", "p3");
+      expect(game.players.length).toBe(3);
+
+      game.markPlayerForRemoval("p1");
+      game.startGame();
+      console.log("game.players", game.players);
+      expect(game.players.length).toBe(2);
+      // game.startGame();
+      // expect(game.players.length).toBe(2);
+      // expect(game.players[0].id).toBe("p2");
+      // expect(game.players[1].id).toBe("p3");
     });
   });
 });

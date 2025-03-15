@@ -111,13 +111,35 @@ const resolvers = {
       pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: game });
       return game;
     },
+    leaveGame: async (_, { gameId, playerId }) => {
+      const updatedGame = await GameManager.leaveGame(gameId, playerId);
+
+      if (updatedGame && updatedGame.players) {
+        // 过滤掉已标记为移除的玩家
+        updatedGame.players = updatedGame.players.filter(
+          (p) => !p.markedForRemoval
+        );
+      }
+
+      // 发布游戏状态变更事件
+      pubsub.publish("GAME_STATE_CHANGED", {
+        gameStateChanged: {
+          ...updatedGame,
+          availableActions: null,
+          isYourTurn: null,
+          messages: [], // 只包含广播消息
+        },
+      });
+
+      return updatedGame;
+    },
   },
   Subscription: {
     bookAdded: {
       subscribe: () => pubsub.asyncIterableIterator(["BOOK_ADDED"]),
     },
     gameStateChanged: {
-      subscribe: (_, { gameId }) => {
+      subscribe: (_, { gameId, playerId }) => {
         const game = GameManager.games.get(gameId);
         if (!game) throw new Error("游戏不存在");
 
@@ -128,6 +150,24 @@ const resolvers = {
             const filteredAsyncIterator = (async function* () {
               for await (const value of asyncIterator) {
                 if (value.gameStateChanged.id === gameId) {
+                  // 如果提供了 playerId，则获取针对该玩家的游戏状态
+                  if (playerId) {
+                    const gameInstance = GameManager.games.get(gameId);
+                    if (gameInstance) {
+                      const playerSpecificState =
+                        gameInstance.getGameState(playerId);
+                      // 合并通用游戏状态和玩家特定状态
+                      value.gameStateChanged = {
+                        ...value.gameStateChanged,
+                        availableActions: playerSpecificState.availableActions,
+                        isYourTurn: playerSpecificState.isYourTurn,
+                        messages: [
+                          ...playerSpecificState.messages.broadcast,
+                          ...playerSpecificState.messages.private,
+                        ],
+                      };
+                    }
+                  }
                   yield value;
                 }
               }
