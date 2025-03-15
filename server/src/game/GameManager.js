@@ -137,7 +137,13 @@ class GameManager {
   }
 
   async notifyGameStateChange(gameId) {
+    const game = this.games.get(gameId);
+    if (!game) throw new Error("Game not found"); 
+
+    const gameState = game.getGameState();
     await this.syncGameState(gameId);
+
+    PubSub.publish("GAME_STATE_CHANGE", { gameStateChanged: gameState });
   }
 
   // get game state

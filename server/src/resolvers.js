@@ -32,6 +32,8 @@ const resolvers = {
       return {
         ...game,
         availableActions: playerId ? gameState.availableActions : [],
+        messages: gameState.messages.broadcast.concat(gameState.messages.private),
+        isYourTurn: gameState.isYourTurn,
       };
     },
     games: async () => {

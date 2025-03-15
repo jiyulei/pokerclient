@@ -30,6 +30,8 @@ const typeDefs = gql`
     createdAt: String!
     updatedAt: String!
     availableActions: [String!]
+    messages: [Message!]
+    isYourTurn: Boolean
   }
 
   type Player {
