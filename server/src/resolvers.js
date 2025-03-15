@@ -32,7 +32,9 @@ const resolvers = {
       return {
         ...game,
         availableActions: playerId ? gameState.availableActions : [],
-        messages: gameState.messages.broadcast.concat(gameState.messages.private),
+        messages: gameState.messages.broadcast.concat(
+          gameState.messages.private
+        ),
         isYourTurn: gameState.isYourTurn,
       };
     },
@@ -115,7 +117,25 @@ const resolvers = {
       subscribe: () => pubsub.asyncIterableIterator(["BOOK_ADDED"]),
     },
     gameStateChanged: {
-      subscribe: () => pubsub.asyncIterableIterator(["GAME_STATE_CHANGED"]),
+      subscribe: (_, { gameId }) => {
+        const game = GameManager.games.get(gameId);
+        if (!game) throw new Error("游戏不存在");
+
+        return {
+          [Symbol.asyncIterator]: () => {
+            const asyncIterator =
+              pubsub.asyncIterableIterator("GAME_STATE_CHANGED");
+            const filteredAsyncIterator = (async function* () {
+              for await (const value of asyncIterator) {
+                if (value.gameStateChanged.id === gameId) {
+                  yield value;
+                }
+              }
+            })();
+            return filteredAsyncIterator;
+          },
+        };
+      },
     },
     playerStateChanged: {
       subscribe: () => pubsub.asyncIterableIterator(["PLAYER_STATE_CHANGED"]),
