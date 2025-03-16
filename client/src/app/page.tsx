@@ -1,8 +1,34 @@
 "use client";
-import Link from "next/link";
+
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMutation, gql } from "@apollo/client";
+
+// 创建游戏的 GraphQL mutation
+const CREATE_GAME_MUTATION = gql`
+  mutation CreateGame(
+    $initialChips: Int
+    $smallBlind: Int
+    $bigBlind: Int
+    $timeLimit: Int
+  ) {
+    createGame(
+      initialChips: $initialChips
+      smallBlind: $smallBlind
+      bigBlind: $bigBlind
+      timeLimit: $timeLimit
+    ) {
+      id
+      initialChips
+      smallBlind
+      bigBlind
+      timeLimit
+    }
+  }
+`;
 
 export default function HomePage() {
+  const router = useRouter();
   const [gameSettings, setGameSettings] = useState({
     initialChips: 1000,
     smallBlind: 5,
@@ -10,12 +36,40 @@ export default function HomePage() {
   });
 
   const [showSettings, setShowSettings] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // 使用 Apollo Client 的 useMutation hook
+  const [createGame, { loading, error }] = useMutation(CREATE_GAME_MUTATION, {
+    onCompleted: (data) => {
+      // 创建成功后，跳转到游戏页面
+      const gameId = data.createGame.id;
+      console.log("游戏创建成功，ID:", gameId);
+      router.push(`/game/${gameId}`);
+    },
+    onError: (error) => {
+      console.error("创建游戏失败:", error);
+      setIsCreating(false);
+    },
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setGameSettings({
       ...gameSettings,
       [name]: parseInt(value, 10),
+    });
+  };
+
+  const handleCreateGame = () => {
+    setIsCreating(true);
+    // 调用创建游戏的 mutation
+    createGame({
+      variables: {
+        initialChips: gameSettings.initialChips,
+        smallBlind: gameSettings.smallBlind,
+        bigBlind: gameSettings.smallBlind * 2,
+        timeLimit: gameSettings.timeLimit,
+      },
     });
   };
 
@@ -98,25 +152,21 @@ export default function HomePage() {
               </div>
             </div>
 
+            {error && (
+              <div className="mt-2 text-red-500 text-sm">
+                创建游戏失败: {error.message}
+              </div>
+            )}
+
             <div className="mt-6">
-              <Link
-                href={{
-                  pathname: "/table/1",
-                  query: {
-                    initialChips: gameSettings.initialChips,
-                    smallBlind: gameSettings.smallBlind,
-                    bigBlind: gameSettings.smallBlind * 2,
-                    timeLimit: gameSettings.timeLimit,
-                  },
-                }}
+              <button
+                onClick={handleCreateGame}
+                disabled={loading || isCreating}
+                className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-md font-bold
+                transition-colors duration-200 disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
-                <button
-                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-md font-bold
-                  transition-colors duration-200"
-                >
-                  创建游戏
-                </button>
-              </Link>
+                {loading || isCreating ? "创建中..." : "创建游戏"}
+              </button>
             </div>
           </div>
         )}
