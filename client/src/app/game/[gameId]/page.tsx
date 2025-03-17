@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, gql } from "@apollo/client";
 
 // 定义Player接口
@@ -87,7 +87,39 @@ export default function GamePage() {
   const [isJoining, setIsJoining] = useState(false);
   const [isSpectating, setIsSpectating] = useState(false);
   const [playerName, setPlayerName] = useState("");
+  const [playerId, setPlayerId] = useState("");
   const [showInfo, setShowInfo] = useState(false); // 控制信息面板显示/隐藏
+
+  // 在组件加载时检查URL和localStorage中是否有玩家ID
+  useEffect(() => {
+    // 从URL中获取玩家ID
+    const url = new URL(window.location.href);
+    const playerIdFromUrl = url.searchParams.get("playerId");
+
+    // 从localStorage中获取玩家ID和游戏ID
+    const storedPlayerId = localStorage.getItem(`poker_player_id_${gameId}`);
+    const storedPlayerName = localStorage.getItem(
+      `poker_player_name_${gameId}`
+    );
+
+    // 如果URL中有玩家ID，使用它
+    if (playerIdFromUrl) {
+      setPlayerId(playerIdFromUrl);
+      // 尝试从localStorage获取对应的名字
+      if (storedPlayerName && storedPlayerId === playerIdFromUrl) {
+        setPlayerName(storedPlayerName);
+      }
+    }
+    // 否则，如果localStorage中有玩家ID，使用它并更新URL
+    else if (storedPlayerId && storedPlayerName) {
+      setPlayerId(storedPlayerId);
+      setPlayerName(storedPlayerName);
+
+      // 更新URL，添加玩家ID参数
+      const newUrl = `${window.location.pathname}?playerId=${storedPlayerId}`;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }, [gameId]);
 
   // 查询游戏状态
   const {
@@ -96,7 +128,7 @@ export default function GamePage() {
     data: gameData,
   } = useQuery(GET_GAME_QUERY, {
     variables: { id: gameId },
-    pollInterval: 0, // 不轮询，我们将使用订阅来获取实时更新
+    pollInterval: 5000, // 每5秒轮询一次，直到我们实现订阅
   });
 
   // 加入游戏的 mutation
@@ -106,6 +138,16 @@ export default function GamePage() {
       onCompleted: (data) => {
         const player = data.joinGame;
         setPlayerName(player.name);
+        setPlayerId(player.id);
+
+        // 保存玩家信息到localStorage
+        localStorage.setItem(`poker_player_id_${gameId}`, player.id);
+        localStorage.setItem(`poker_player_name_${gameId}`, player.name);
+
+        // 更新URL，添加玩家ID参数
+        const newUrl = `${window.location.pathname}?playerId=${player.id}`;
+        window.history.replaceState({}, "", newUrl);
+
         console.log(
           `Player ${player.name} (ID: ${player.id}) successfully joined the game`
         );
@@ -151,6 +193,18 @@ export default function GamePage() {
     setShowInfo(!showInfo);
   };
 
+  // 检查当前玩家是否在游戏中
+  const isCurrentPlayerInGame = () => {
+    if (!playerId || !game || !game.players) return false;
+    return game.players.some((player: Player) => player.id === playerId);
+  };
+
+  // 获取当前玩家
+  const getCurrentPlayer = () => {
+    if (!playerId || !game || !game.players) return null;
+    return game.players.find((player: Player) => player.id === playerId);
+  };
+
   if (gameLoading)
     return (
       <div className="h-screen w-full flex items-center justify-center text-white">
@@ -165,11 +219,20 @@ export default function GamePage() {
     );
 
   const game = gameData?.game;
+  const currentPlayer = getCurrentPlayer();
 
   return (
     <div className="h-[calc(100vh-4rem)] w-full flex flex-col items-center justify-center bg-gray-900 text-white px-4 relative">
       <h1 className="text-4xl font-bold mb-2">Texas Hold&apos;em</h1>
       <p className="text-gray-400 mb-8">Game ID: {gameId}</p>
+
+      {/* 玩家信息显示 */}
+      {currentPlayer && (
+        <div className="absolute top-8 left-8 bg-gray-800 p-3 rounded-md">
+          <p className="font-semibold">You: {currentPlayer.name}</p>
+          <p className="text-sm">Chips: {currentPlayer.chips}</p>
+        </div>
+      )}
 
       {/* 信息图标按钮 */}
       <button
@@ -199,7 +262,11 @@ export default function GamePage() {
       )}
 
       <div className="w-full max-w-[900px] aspect-[8/5] bg-cyan-800 rounded-[50%] border-8 border-gray-500 flex items-center justify-center mb-8 relative">
-        {playerName ? (
+        {currentPlayer ? (
+          <p className="text-2xl text-center px-4">
+            Welcome, {currentPlayer.name}! You&apos;ve joined the game
+          </p>
+        ) : playerName ? (
           <p className="text-2xl text-center px-4">
             Welcome, {playerName}! You&apos;ve joined the game
           </p>
@@ -214,7 +281,9 @@ export default function GamePage() {
           game.players.map((player: Player, index: number) => (
             <div
               key={player.id}
-              className="absolute bg-gray-800 p-2 rounded-full border-2 border-white"
+              className={`absolute bg-gray-800 p-2 rounded-full border-2 ${
+                player.id === playerId ? "border-yellow-400" : "border-white"
+              }`}
               style={{
                 top: `${
                   50 -
@@ -233,7 +302,9 @@ export default function GamePage() {
                 transform: "translate(-50%, -50%)",
               }}
             >
-              <p className="text-sm">{player.name}</p>
+              <p className="text-sm">
+                {player.id === playerId ? `${player.name} (You)` : player.name}
+              </p>
               <p className="text-xs">{player.chips} chips</p>
             </div>
           ))}
@@ -249,18 +320,20 @@ export default function GamePage() {
         <button
           className="text-white px-4 py-2 rounded-md border-2 border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleJoinTable}
-          disabled={isJoining || isSpectating || !!playerName || joinLoading}
+          disabled={
+            isJoining || isSpectating || isCurrentPlayerInGame() || joinLoading
+          }
         >
           {isJoining || joinLoading
             ? "Joining..."
-            : playerName
+            : isCurrentPlayerInGame()
             ? "Joined"
             : "Join Game"}
         </button>
         <button
           className="text-white px-4 py-2 rounded-md border-2 border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleSpectate}
-          disabled={isJoining || isSpectating || !!playerName}
+          disabled={isJoining || isSpectating || isCurrentPlayerInGame()}
         >
           {isSpectating ? "Joining..." : "Spectate"}
         </button>
