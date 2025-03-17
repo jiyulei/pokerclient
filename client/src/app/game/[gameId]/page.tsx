@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useMutation, useQuery, gql } from "@apollo/client";
+import { useParams } from "next/navigation";
+import { useMutation, useQuery, useSubscription, gql } from "@apollo/client";
 
 // 定义Player接口
 interface Player {
@@ -10,6 +10,43 @@ interface Player {
   name: string;
   chips: number;
   position: number;
+}
+
+// 定义消息接口
+interface GameMessage {
+  id: string;
+  content: string;
+  timestamp: number;
+  type: string;
+  playerId: string;
+}
+
+// 定义游戏接口
+interface Game {
+  id: string;
+  status: string;
+  round: number;
+  currentRound?: string;
+  pot: number;
+  communityCards: string[];
+  currentPlayerPos?: number;
+  dealerPos?: number;
+  smallBlindPos?: number;
+  bigBlindPos?: number;
+  currentRoundMaxBet?: number;
+  mainPot?: number;
+  sidePots?: number[];
+  initialChips: number;
+  smallBlind: number;
+  bigBlind: number;
+  timeLimit: number;
+  maxPlayers: number;
+  players: Player[];
+  availableActions?: string[];
+  isYourTurn?: boolean;
+  messages?: GameMessage[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // 获取游戏状态的 GraphQL 查询
@@ -27,6 +64,34 @@ const GET_GAME_QUERY = gql`
         name
         chips
         position
+      }
+    }
+  }
+`;
+
+// 游戏状态订阅
+const GAME_STATE_SUBSCRIPTION = gql`
+  subscription GameStateChanged($gameId: ID!, $playerId: ID) {
+    gameStateChanged(gameId: $gameId, playerId: $playerId) {
+      id
+      status
+      initialChips
+      smallBlind
+      bigBlind
+      timeLimit
+      players {
+        id
+        name
+        chips
+        position
+      }
+      availableActions
+      isYourTurn
+      messages {
+        id
+        content
+        timestamp
+        type
       }
     }
   }
@@ -86,9 +151,10 @@ export default function GamePage() {
 
   const [isJoining, setIsJoining] = useState(false);
   const [isSpectating, setIsSpectating] = useState(false);
-  const [playerName, setPlayerName] = useState("");
   const [playerId, setPlayerId] = useState("");
   const [showInfo, setShowInfo] = useState(false); // 控制信息面板显示/隐藏
+  const [gameState, setGameState] = useState<Game | null>(null);
+  const [messages, setMessages] = useState<GameMessage[]>([]);
 
   // 在组件加载时检查URL和localStorage中是否有玩家ID
   useEffect(() => {
@@ -107,13 +173,12 @@ export default function GamePage() {
       setPlayerId(playerIdFromUrl);
       // 尝试从localStorage获取对应的名字
       if (storedPlayerName && storedPlayerId === playerIdFromUrl) {
-        setPlayerName(storedPlayerName);
+        // 移除未使用的playerName状态变量
       }
     }
     // 否则，如果localStorage中有玩家ID，使用它并更新URL
     else if (storedPlayerId && storedPlayerName) {
       setPlayerId(storedPlayerId);
-      setPlayerName(storedPlayerName);
 
       // 更新URL，添加玩家ID参数
       const newUrl = `${window.location.pathname}?playerId=${storedPlayerId}`;
@@ -121,43 +186,71 @@ export default function GamePage() {
     }
   }, [gameId]);
 
-  // 查询游戏状态
+  // 初始查询游戏状态 - 只在组件挂载时执行一次
   const {
     loading: gameLoading,
     error: gameError,
     data: gameData,
+    refetch,
   } = useQuery(GET_GAME_QUERY, {
     variables: { id: gameId },
-    pollInterval: 5000, // 每5秒轮询一次，直到我们实现订阅
+    pollInterval: 0, // 不再使用轮询，改用订阅
+  });
+
+  // 订阅游戏状态变化
+  useSubscription(GAME_STATE_SUBSCRIPTION, {
+    variables: { gameId, playerId },
+    onData: ({ data }) => {
+      console.log("订阅收到数据:", data?.data?.gameStateChanged);
+      if (data?.data?.gameStateChanged) {
+        const newGameState = data.data.gameStateChanged;
+        setGameState(newGameState);
+
+        // 更新消息
+        if (newGameState.messages) {
+          setMessages(newGameState.messages);
+        }
+
+        // 如果当前玩家在游戏中，确保 joining 状态为 false
+        if (newGameState.players?.some((p: Player) => p.id === playerId)) {
+          setIsJoining(false);
+        }
+      }
+    },
+    onError: (error) => {
+      console.error("订阅错误:", error);
+    },
   });
 
   // 加入游戏的 mutation
-  const [joinGame, { loading: joinLoading, error: joinError }] = useMutation(
-    JOIN_GAME_MUTATION,
-    {
-      onCompleted: (data) => {
-        const player = data.joinGame;
-        setPlayerName(player.name);
-        setPlayerId(player.id);
+  const [joinGame] = useMutation(JOIN_GAME_MUTATION, {
+    onCompleted: (data) => {
+      console.log("加入游戏成功:", data);
+      const playerId = data.joinGame.id;
+      // 修正 localStorage key 的名称
+      localStorage.setItem(`poker_player_id_${gameId}`, playerId);
+      localStorage.setItem(`poker_player_name_${gameId}`, data.joinGame.name);
 
-        // 保存玩家信息到localStorage
-        localStorage.setItem(`poker_player_id_${gameId}`, player.id);
-        localStorage.setItem(`poker_player_name_${gameId}`, player.name);
+      // 更新组件状态
+      setPlayerId(playerId);
 
-        // 更新URL，添加玩家ID参数
-        const newUrl = `${window.location.pathname}?playerId=${player.id}`;
-        window.history.replaceState({}, "", newUrl);
+      // 不要在这里设置 isJoining 为 false
+      // 让订阅更新来处理这个状态变化
 
-        console.log(
-          `Player ${player.name} (ID: ${player.id}) successfully joined the game`
-        );
-      },
-      onError: (error) => {
-        console.error("Failed to join game:", error);
-        setIsJoining(false);
-      },
-    }
-  );
+      // 更新 URL 参数
+      const searchParams = new URLSearchParams(window.location.search);
+      searchParams.set("playerId", playerId);
+      const newUrl = `${window.location.pathname}?${searchParams.toString()}`;
+      window.history.pushState({}, "", newUrl);
+
+      // 手动触发一次查询刷新
+      refetch();
+    },
+    onError: (error) => {
+      setIsJoining(false);
+      console.error("加入游戏失败:", error);
+    },
+  });
 
   // 处理加入游戏的逻辑
   const handleJoinTable = () => {
@@ -193,6 +286,11 @@ export default function GamePage() {
     setShowInfo(!showInfo);
   };
 
+  // 使用订阅数据或初始查询数据
+  const game = gameState || gameData?.game;
+  console.log("game", game);
+  console.log("gameState", gameState);
+
   // 检查当前玩家是否在游戏中
   const isCurrentPlayerInGame = () => {
     if (!playerId || !game || !game.players) return false;
@@ -205,7 +303,13 @@ export default function GamePage() {
     return game.players.find((player: Player) => player.id === playerId);
   };
 
-  if (gameLoading)
+  useEffect(() => {
+    if (gameState?.players?.some((p) => p.id === playerId)) {
+      setIsJoining(false);
+    }
+  }, [gameState, playerId]);
+
+  if (gameLoading && !game)
     return (
       <div className="h-screen w-full flex items-center justify-center text-white">
         Loading game...
@@ -218,7 +322,6 @@ export default function GamePage() {
       </div>
     );
 
-  const game = gameData?.game;
   const currentPlayer = getCurrentPlayer();
 
   return (
@@ -231,6 +334,9 @@ export default function GamePage() {
         <div className="absolute top-8 left-8 bg-gray-800 p-3 rounded-md">
           <p className="font-semibold">You: {currentPlayer.name}</p>
           <p className="text-sm">Chips: {currentPlayer.chips}</p>
+          {game && game.isYourTurn && (
+            <p className="text-sm text-yellow-400 font-bold mt-1">Your turn!</p>
+          )}
         </div>
       )}
 
@@ -264,11 +370,9 @@ export default function GamePage() {
       <div className="w-full max-w-[900px] aspect-[8/5] bg-cyan-800 rounded-[50%] border-8 border-gray-500 flex items-center justify-center mb-8 relative">
         {currentPlayer ? (
           <p className="text-2xl text-center px-4">
-            Welcome, {currentPlayer.name}! You&apos;ve joined the game
-          </p>
-        ) : playerName ? (
-          <p className="text-2xl text-center px-4">
-            Welcome, {playerName}! You&apos;ve joined the game
+            {isJoining
+              ? "Joining game..."
+              : `Welcome, ${currentPlayer.name}! You've joined the game`}
           </p>
         ) : (
           <p className="text-2xl text-center px-4">
@@ -310,9 +414,34 @@ export default function GamePage() {
           ))}
       </div>
 
-      {joinError && (
-        <div className="text-red-500 mb-4">
-          Failed to join game: {joinError.message}
+      {/* 游戏消息区域 */}
+      {messages.length > 0 && (
+        <div className="w-full max-w-[900px] bg-gray-800 rounded-md p-3 mb-4 max-h-32 overflow-y-auto">
+          <h3 className="text-sm font-semibold mb-1">Game Messages:</h3>
+          <ul className="text-xs space-y-1">
+            {messages.slice(-5).map((msg) => (
+              <li key={msg.id} className="text-gray-300">
+                {msg.content}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* 可用操作按钮 */}
+      {game && game.availableActions && game.availableActions.length > 0 && (
+        <div className="w-full max-w-[900px] bg-gray-800 rounded-md p-3 mb-4">
+          <h3 className="text-sm font-semibold mb-2">Available Actions:</h3>
+          <div className="flex flex-wrap gap-2">
+            {game.availableActions.map((action: string) => (
+              <button
+                key={action}
+                className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+              >
+                {action.charAt(0).toUpperCase() + action.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -320,15 +449,9 @@ export default function GamePage() {
         <button
           className="text-white px-4 py-2 rounded-md border-2 border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleJoinTable}
-          disabled={
-            isJoining || isSpectating || isCurrentPlayerInGame() || joinLoading
-          }
+          disabled={isJoining || isSpectating || isCurrentPlayerInGame()}
         >
-          {isJoining || joinLoading
-            ? "Joining..."
-            : isCurrentPlayerInGame()
-            ? "Joined"
-            : "Join Game"}
+          {isJoining ? "Joining..." : "Join Game"}
         </button>
         <button
           className="text-white px-4 py-2 rounded-md border-2 border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
