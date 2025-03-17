@@ -31,7 +31,7 @@ const app = express();
 // 添加CORS配置
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://pokerclient.vercel.app/"],
+    origin: ["http://localhost:3000", "https://pokerclient.vercel.app"],
     credentials: true,
   })
 );
