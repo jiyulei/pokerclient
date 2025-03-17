@@ -424,17 +424,11 @@ export default function GamePage() {
       )}
 
       <div className="w-full max-w-[900px] aspect-[8/5] bg-cyan-800 rounded-[50%] border-8 border-gray-500 flex items-center justify-center mb-8 relative">
-        {currentPlayer ? (
-          <p className="text-2xl text-center px-4">
-            {isJoining
-              ? "Joining game..."
-              : `Welcome, ${currentPlayer.name}! You've joined the game`}
-          </p>
-        ) : (
+        {
           <p className="text-2xl text-center px-4">
             Welcome to Texas Hold&apos;em
           </p>
-        )}
+        }
 
         {/* 显示玩家位置 */}
         {game &&

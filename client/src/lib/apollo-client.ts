@@ -37,11 +37,15 @@ const wsLink = new GraphQLWsLink(
 
 // const httpLink = new HttpLink({
 //   uri: "https://pokerclient-production.up.railway.app/graphql",
+//   credentials: "include",
 // });
 
 // const wsLink = new GraphQLWsLink(
 //   createClient({
 //     url: "wss://pokerclient-production.up.railway.app/graphql",
+//     connectionParams: {
+//       credentials: "include",
+//     },
 //   })
 // );
 

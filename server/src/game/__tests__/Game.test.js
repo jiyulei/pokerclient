@@ -123,7 +123,6 @@ describe("Game", () => {
       expect(game.currentRound).toBe("flop");
       expect(game.pot).toBe(120);
     });
-
   });
 
   describe("Player Actions Scenarios", () => {

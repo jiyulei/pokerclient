@@ -220,43 +220,69 @@ const resolvers = {
           `GAME_${gameId}_STATE_CHANGED`,
         ]);
 
-        // 当连接关闭时清理
-        if (context.connection) {
+        // 当连接关闭时清理 - 安全检查
+        if (
+          context &&
+          context.connection &&
+          typeof context.connection.onClose === "function"
+        ) {
           context.connection.onClose(() => {
             console.log(`连接关闭，清理: ${connectionId}`);
             activeConnections.delete(connectionId);
           });
+        } else {
+          // 对于没有 connection 对象的情况，可以设置一个备用的清理机制
+          console.log(
+            `警告: 连接 ${connectionId} 没有 context.connection 对象`
+          );
+          // 可以在这里设置一个定时器来检查这个连接是否还活跃
         }
 
-        // 创建一个包装的迭代器，用于更新最后活跃时间
+        // 创建一个包装的迭代器
         return {
           [Symbol.asyncIterator]: async function* () {
-            for await (const value of asyncIterator) {
-              // 更新最后活跃时间
-              if (activeConnections.has(connectionId)) {
-                activeConnections.get(connectionId).lastActive = Date.now();
-              }
-
-              // 如果提供了playerId，则获取针对该玩家的游戏状态
-              if (playerId && value.gameStateChanged) {
-                const gameInstance = GameManager.games.get(gameId);
-                if (gameInstance) {
-                  const playerSpecificState =
-                    gameInstance.getGameState(playerId);
-                  // 合并通用游戏状态和玩家特定状态
-                  value.gameStateChanged = {
-                    ...value.gameStateChanged,
-                    availableActions: playerSpecificState.availableActions,
-                    isYourTurn: playerSpecificState.isYourTurn,
-                    messages: [
-                      ...playerSpecificState.messages.broadcast,
-                      ...playerSpecificState.messages.private,
-                    ],
-                  };
+            try {
+              for await (const value of asyncIterator) {
+                // 更新最后活跃时间
+                if (activeConnections.has(connectionId)) {
+                  activeConnections.get(connectionId).lastActive = Date.now();
                 }
-              }
 
-              yield value;
+                // 如果提供了playerId，则获取针对该玩家的游戏状态
+                if (playerId && value.gameStateChanged) {
+                  const gameInstance = GameManager.games.get(gameId);
+                  if (gameInstance) {
+                    try {
+                      const playerSpecificState =
+                        gameInstance.getGameState(playerId);
+                      // 合并通用游戏状态和玩家特定状态
+                      value.gameStateChanged = {
+                        ...value.gameStateChanged,
+                        availableActions:
+                          playerSpecificState.availableActions || [],
+                        isYourTurn: playerSpecificState.isYourTurn || false,
+                        messages: [
+                          ...(playerSpecificState.messages.broadcast || []),
+                          ...(playerSpecificState.messages.private || []),
+                        ],
+                      };
+                    } catch (error) {
+                      console.error(`获取玩家 ${playerId} 状态时出错:`, error);
+                    }
+                  }
+                }
+
+                yield value;
+              }
+            } catch (error) {
+              console.error(`订阅迭代器错误 (${connectionId}):`, error);
+              // 确保清理连接
+              activeConnections.delete(connectionId);
+              throw error; // 重新抛出错误以便客户端知道出了问题
+            } finally {
+              // 确保在迭代器结束时清理
+              console.log(`订阅迭代器结束，清理: ${connectionId}`);
+              activeConnections.delete(connectionId);
             }
           },
         };
