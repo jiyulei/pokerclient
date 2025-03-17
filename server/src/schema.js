@@ -89,28 +89,8 @@ const typeDefs = gql`
 
   type Subscription {
     bookAdded: Book
-    gameStateChanged(gameId: ID!, playerId: ID): GameState!
+    gameStateChanged(gameId: ID!, playerId: ID): Game!
     playerStateChanged(gameId: ID!, playerId: ID!): Player!
-  }
-
-  type GameState {
-    id: ID!
-    status: String!
-    round: Int!
-    currentRound: String
-    pot: Int!
-    communityCards: [String!]!
-    currentPlayerPos: Int
-    dealerPos: Int
-    smallBlindPos: Int
-    bigBlindPos: Int
-    currentRoundMaxBet: Int
-    mainPot: Int
-    sidePots: [Int!]
-    players: [Player!]!
-    availableActions: [String!]
-    messages: [Message!]
-    isYourTurn: Boolean
   }
 `;
 
