@@ -116,6 +116,7 @@ class GameManager {
     const playerDataForDB = {
       id: playerId,
       gameId,
+      name: playerData.name,
       chips: game.initialChips,
       position: game.players.length,
       hand: [],
@@ -164,44 +165,84 @@ class GameManager {
     const game = this.games.get(gameId);
     if (!game) throw new Error("Game not found");
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.game.update({
-        where: { id: gameId },
-        data: {
-          status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
-          round: game.round,
-          pot: game.pot,
-          currentRound: game.currentRound,
-          communityCards: game.communityCards.map((card) => card.toString()),
-          dealerPos: game.dealer,
-          smallBlindPos: game.smallBlindPos,
-          bigBlindPos: game.bigBlindPos,
-          currentPlayerPos: game.currentPlayer,
-          currentRoundMaxBet: game.currentRoundMaxBet,
-          mainPot: game.mainPot,
-          sidePots: game.sidePots,
-        },
+    try {
+      // 首先获取数据库中存在的玩家
+      const existingPlayers = await this.prisma.player.findMany({
+        where: { gameId: gameId },
+        select: { id: true },
       });
 
-      for (const player of game.players) {
-        await tx.player.update({
-          where: { id: player.id },
+      // 创建一个Set来快速查找玩家ID是否存在
+      const existingPlayerIds = new Set(existingPlayers.map((p) => p.id));
+
+      await this.prisma.$transaction(async (tx) => {
+        // 更新游戏状态
+        await tx.game.update({
+          where: { id: gameId },
           data: {
-            chips: player.chips,
-            currentBet: player.currentBet,
-            totalBet: player.totalBet,
-            isFolded: player.isFolded,
-            isAllIn: player.isAllIn,
-            hand: player.hand.map((card) => card.toString()),
-            position: player.position,
-            isActive: player.isActive,
-            hasChecked: player.hasChecked,
-            totalRounds: player.totalRounds,
-            markedForRemoval: player.markedForRemoval,
+            status: game.isGameInProgress ? "IN_PROGRESS" : "WAITING",
+            round: game.round,
+            pot: game.pot,
+            currentRound: game.currentRound,
+            communityCards: game.communityCards.map((card) => card.toString()),
+            dealerPos: game.dealer,
+            smallBlindPos: game.smallBlindPos,
+            bigBlindPos: game.bigBlindPos,
+            currentPlayerPos: game.currentPlayer,
+            currentRoundMaxBet: game.currentRoundMaxBet,
+            mainPot: game.mainPot,
+            sidePots: game.sidePots,
           },
         });
-      }
-    });
+
+        // 只更新数据库中存在的玩家
+        for (const player of game.players) {
+          // 检查玩家是否存在于数据库中
+          if (existingPlayerIds.has(player.id)) {
+            await tx.player.update({
+              where: { id: player.id },
+              data: {
+                chips: player.chips,
+                currentBet: player.currentBet,
+                totalBet: player.totalBet,
+                isFolded: player.isFolded,
+                isAllIn: player.isAllIn,
+                hand: player.hand.map((card) => card.toString()),
+                position: player.position,
+                isActive: player.isActive,
+                hasChecked: player.hasChecked,
+                totalRounds: player.totalRounds,
+                markedForRemoval: player.markedForRemoval,
+              },
+            });
+          } else {
+            console.warn(`尝试更新不存在的玩家: ${player.id}，将创建新记录`);
+            // 如果玩家不存在，创建一个新记录
+            await tx.player.create({
+              data: {
+                id: player.id,
+                gameId: gameId,
+                name: player.name,
+                chips: player.chips,
+                currentBet: player.currentBet,
+                totalBet: player.totalBet,
+                isFolded: player.isFolded,
+                isAllIn: player.isAllIn,
+                hand: player.hand.map((card) => card.toString()),
+                position: player.position,
+                isActive: player.isActive,
+                hasChecked: player.hasChecked,
+                totalRounds: player.totalRounds,
+                markedForRemoval: player.markedForRemoval,
+              },
+            });
+          }
+        }
+      });
+    } catch (error) {
+      console.error(`同步游戏状态失败 (gameId: ${gameId}):`, error);
+      throw error;
+    }
   }
 
   //   async syncGameState(gameId) {
