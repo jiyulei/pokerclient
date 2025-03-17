@@ -109,6 +109,21 @@ const JOIN_GAME_MUTATION = gql`
   }
 `;
 
+// 开始游戏的 GraphQL mutation
+const START_GAME_MUTATION = gql`
+  mutation StartGame($gameId: ID!) {
+    startGame(gameId: $gameId) {
+      id
+      status
+      players {
+        id
+        name
+        chips
+      }
+    }
+  }
+`;
+
 // 随机名字生成函数
 const generateRandomName = () => {
   const adjectives = [
@@ -309,6 +324,28 @@ export default function GamePage() {
     }
   }, [gameState, playerId]);
 
+  // 在组件中添加 mutation hook
+  const [startGame, { loading: startGameLoading }] = useMutation(
+    START_GAME_MUTATION,
+    {
+      onCompleted: (data) => {
+        console.log("Game started successfully:", data);
+      },
+      onError: (error) => {
+        console.error("Failed to start game:", error);
+      },
+    }
+  );
+
+  // 处理开始游戏的函数
+  const handleStartGame = () => {
+    startGame({
+      variables: {
+        gameId: gameId,
+      },
+    });
+  };
+
   if (gameLoading && !game)
     return (
       <div className="h-screen w-full flex items-center justify-center text-white">
@@ -445,22 +482,38 @@ export default function GamePage() {
         </div>
       )}
 
-      <div className="flex gap-4 mt-6">
-        <button
-          className="text-white px-4 py-2 rounded-md border-2 border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={handleJoinTable}
-          disabled={isJoining || isSpectating || isCurrentPlayerInGame()}
-        >
-          {isJoining ? "Joining..." : "Join Game"}
-        </button>
-        <button
-          className="text-white px-4 py-2 rounded-md border-2 border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={handleSpectate}
-          disabled={isJoining || isSpectating || isCurrentPlayerInGame()}
-        >
-          {isSpectating ? "Joining..." : "Spectate"}
-        </button>
-      </div>
+      {/* 只有当玩家未加入游戏时才显示加入按钮 */}
+      {!isCurrentPlayerInGame() && (
+        <div className="flex gap-4 mt-6">
+          <button
+            className="text-white px-4 py-2 rounded-md border-2 border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleJoinTable}
+            disabled={isJoining || isSpectating}
+          >
+            {isJoining ? "Joining..." : "Join Game"}
+          </button>
+          <button
+            className="text-white px-4 py-2 rounded-md border-2 border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleSpectate}
+            disabled={isJoining || isSpectating}
+          >
+            {isSpectating ? "Joining..." : "Spectate"}
+          </button>
+        </div>
+      )}
+
+      {/* 当玩家已加入游戏时，可以显示游戏相关操作按钮 */}
+      {isCurrentPlayerInGame() && game && game.status === "WAITING" && (
+        <div className="mt-6">
+          <button
+            className="text-white px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleStartGame}
+            disabled={game.players.length < 2 || startGameLoading}
+          >
+            {startGameLoading ? "Starting..." : "Start Game"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
