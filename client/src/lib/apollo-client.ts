@@ -18,14 +18,32 @@ import { getMainDefinition } from "@apollo/client/utilities";
 // );
 
 const httpLink = new HttpLink({
-  uri: "https://pokerclient-production.up.railway.app/graphql",
+  uri:
+    process.env.NEXT_PUBLIC_GRAPHQL_HTTP_URL ||
+    "https://pokerclient-production.up.railway.app/graphql",
+  credentials: "include",
 });
 
 const wsLink = new GraphQLWsLink(
   createClient({
-    url: "wss://pokerclient-production.up.railway.app/graphql",
+    url:
+      process.env.NEXT_PUBLIC_GRAPHQL_WS_URL ||
+      "wss://pokerclient-production.up.railway.app/graphql",
+    connectionParams: {
+      credentials: "include",
+    },
   })
 );
+
+// const httpLink = new HttpLink({
+//   uri: "https://pokerclient-production.up.railway.app/graphql",
+// });
+
+// const wsLink = new GraphQLWsLink(
+//   createClient({
+//     url: "wss://pokerclient-production.up.railway.app/graphql",
+//   })
+// );
 
 // 自动切换 HTTP 和 WebSocket
 const splitLink = split(
