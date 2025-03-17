@@ -366,16 +366,35 @@ export default function GamePage() {
       <h1 className="text-4xl font-bold mb-2">Texas Hold&apos;em</h1>
       <p className="text-gray-400 mb-8">Game ID: {gameId}</p>
 
-      {/* 玩家信息显示 */}
-      {currentPlayer && (
-        <div className="absolute top-8 left-8 bg-gray-800 p-3 rounded-md">
-          <p className="font-semibold">You: {currentPlayer.name}</p>
-          <p className="text-sm">Chips: {currentPlayer.chips}</p>
-          {game && game.isYourTurn && (
-            <p className="text-sm text-yellow-400 font-bold mt-1">Your turn!</p>
-          )}
-        </div>
-      )}
+      {/* 玩家信息显示和消息区域 - 放在左侧 */}
+      <div className="absolute top-8 left-8 flex flex-col gap-3">
+        {/* 玩家信息面板 */}
+        {currentPlayer && (
+          <div className="bg-gray-800 p-3 rounded-md w-64">
+            <p className="font-semibold">You: {currentPlayer.name}</p>
+            <p className="font-semibold">Chips: {currentPlayer.chips}</p>
+            {game && game.isYourTurn && (
+              <p className="text-sm text-yellow-400 font-bold mt-1">
+                Your turn!
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* 游戏消息区域 - 放在玩家信息下方 */}
+        {messages.length > 0 && (
+          <div className="bg-gray-800 rounded-md p-3 w-64 max-h-48 overflow-y-auto">
+            <h3 className="text-sm font-semibold mb-1">Game Messages:</h3>
+            <ul className="text-xs space-y-1">
+              {messages.slice(-5).map((msg) => (
+                <li key={msg.id} className="text-gray-300">
+                  {msg.content}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
       {/* 信息图标按钮 */}
       <button
@@ -450,20 +469,6 @@ export default function GamePage() {
             </div>
           ))}
       </div>
-
-      {/* 游戏消息区域 */}
-      {messages.length > 0 && (
-        <div className="w-full max-w-[900px] bg-gray-800 rounded-md p-3 mb-4 max-h-32 overflow-y-auto">
-          <h3 className="text-sm font-semibold mb-1">Game Messages:</h3>
-          <ul className="text-xs space-y-1">
-            {messages.slice(-5).map((msg) => (
-              <li key={msg.id} className="text-gray-300">
-                {msg.content}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* 可用操作按钮 */}
       {game && game.availableActions && game.availableActions.length > 0 && (

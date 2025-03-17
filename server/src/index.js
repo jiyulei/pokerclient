@@ -34,6 +34,7 @@ app.use(
     origin: function (origin, callback) {
       const allowedOrigins = [
         "http://localhost:3000",
+        "http://localhost:4000",
         "https://pokerclient.vercel.app",
       ];
       // 允许没有 origin 的请求（如移动应用或 Postman）
