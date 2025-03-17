@@ -4,6 +4,30 @@ import prisma from "./game/prisma.js";
 import GameManager from "./game/GameManager.js";
 
 const pubsub = new PubSub();
+// 增加最大监听器数量，避免警告
+if (
+  pubsub.eventEmitter &&
+  typeof pubsub.eventEmitter.setMaxListeners === "function"
+) {
+  pubsub.eventEmitter.setMaxListeners(100);
+}
+
+// 跟踪活跃连接
+const activeConnections = new Map();
+
+// 定期清理不活跃连接（每5分钟）
+setInterval(async () => {
+  console.log(`清理不活跃连接，当前连接数: ${activeConnections.size}`);
+  const now = Date.now();
+  const inactiveThreshold = 10 * 60 * 1000; // 10分钟不活跃视为断开
+
+  for (const [connectionId, connection] of activeConnections.entries()) {
+    if (now - connection.lastActive > inactiveThreshold) {
+      console.log(`移除不活跃连接: ${connectionId}`);
+      activeConnections.delete(connectionId);
+    }
+  }
+}, 5 * 60 * 1000);
 
 const resolvers = {
   Query: {
@@ -69,7 +93,10 @@ const resolvers = {
     },
     createGame: async (_, args) => {
       const game = await GameManager.createGame(args);
-      pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: game });
+      // 使用游戏ID作为事件名的一部分
+      pubsub.publish(`GAME_${game.id}_STATE_CHANGED`, {
+        gameStateChanged: game,
+      });
       return game;
     },
     joinGame: async (_, { gameId, name, userId }) => {
@@ -82,10 +109,12 @@ const resolvers = {
       });
 
       // 发布玩家状态变更事件
-      pubsub.publish("PLAYER_STATE_CHANGED", { playerStateChanged: player });
+      pubsub.publish(`PLAYER_${gameId}_STATE_CHANGED`, {
+        playerStateChanged: player,
+      });
 
       // 同时发布游戏状态变更事件，这样所有订阅者都能收到新玩家加入的通知
-      pubsub.publish("GAME_STATE_CHANGED", {
+      pubsub.publish(`GAME_${gameId}_STATE_CHANGED`, {
         gameStateChanged: {
           ...updatedGame,
           // 添加游戏实例中的状态信息
@@ -115,7 +144,9 @@ const resolvers = {
         include: { players: true },
       });
 
-      pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: updatedGame });
+      pubsub.publish(`GAME_${gameId}_STATE_CHANGED`, {
+        gameStateChanged: updatedGame,
+      });
       return updatedGame;
     },
     playerAction: async (_, { gameId, playerId, action, amount }) => {
@@ -125,7 +156,9 @@ const resolvers = {
         include: { players: true },
       });
 
-      pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: updatedGame });
+      pubsub.publish(`GAME_${gameId}_STATE_CHANGED`, {
+        gameStateChanged: updatedGame,
+      });
       return updatedGame;
     },
     endGame: async (_, { gameId }) => {
@@ -135,7 +168,9 @@ const resolvers = {
         include: { players: true },
       });
 
-      pubsub.publish("GAME_STATE_CHANGED", { gameStateChanged: game });
+      pubsub.publish(`GAME_${gameId}_STATE_CHANGED`, {
+        gameStateChanged: game,
+      });
       return game;
     },
     leaveGame: async (_, { gameId, playerId }) => {
@@ -149,7 +184,7 @@ const resolvers = {
       }
 
       // 发布游戏状态变更事件
-      pubsub.publish("GAME_STATE_CHANGED", {
+      pubsub.publish(`GAME_${gameId}_STATE_CHANGED`, {
         gameStateChanged: {
           ...updatedGame,
           availableActions: null,
@@ -166,46 +201,72 @@ const resolvers = {
       subscribe: () => pubsub.asyncIterableIterator(["BOOK_ADDED"]),
     },
     gameStateChanged: {
-      subscribe: (_, { gameId, playerId }) => {
-        const game = GameManager.games.get(gameId);
-        if (!game) throw new Error("游戏不存在");
+      subscribe: (_, { gameId, playerId }, context) => {
+        // 生成唯一的连接ID
+        const connectionId = `${gameId}:${
+          playerId || "anonymous"
+        }:${Date.now()}`;
 
+        // 记录连接信息
+        activeConnections.set(connectionId, {
+          gameId,
+          playerId,
+          lastActive: Date.now(),
+          context,
+        });
+
+        // 使用游戏特定的事件通道
+        const asyncIterator = pubsub.asyncIterableIterator([
+          `GAME_${gameId}_STATE_CHANGED`,
+        ]);
+
+        // 当连接关闭时清理
+        if (context.connection) {
+          context.connection.onClose(() => {
+            console.log(`连接关闭，清理: ${connectionId}`);
+            activeConnections.delete(connectionId);
+          });
+        }
+
+        // 创建一个包装的迭代器，用于更新最后活跃时间
         return {
-          [Symbol.asyncIterator]: () => {
-            const asyncIterator =
-              pubsub.asyncIterableIterator("GAME_STATE_CHANGED");
-            const filteredAsyncIterator = (async function* () {
-              for await (const value of asyncIterator) {
-                if (value.gameStateChanged.id === gameId) {
-                  // 如果提供了 playerId，则获取针对该玩家的游戏状态
-                  if (playerId) {
-                    const gameInstance = GameManager.games.get(gameId);
-                    if (gameInstance) {
-                      const playerSpecificState =
-                        gameInstance.getGameState(playerId);
-                      // 合并通用游戏状态和玩家特定状态
-                      value.gameStateChanged = {
-                        ...value.gameStateChanged,
-                        availableActions: playerSpecificState.availableActions,
-                        isYourTurn: playerSpecificState.isYourTurn,
-                        messages: [
-                          ...playerSpecificState.messages.broadcast,
-                          ...playerSpecificState.messages.private,
-                        ],
-                      };
-                    }
-                  }
-                  yield value;
+          [Symbol.asyncIterator]: async function* () {
+            for await (const value of asyncIterator) {
+              // 更新最后活跃时间
+              if (activeConnections.has(connectionId)) {
+                activeConnections.get(connectionId).lastActive = Date.now();
+              }
+
+              // 如果提供了playerId，则获取针对该玩家的游戏状态
+              if (playerId && value.gameStateChanged) {
+                const gameInstance = GameManager.games.get(gameId);
+                if (gameInstance) {
+                  const playerSpecificState =
+                    gameInstance.getGameState(playerId);
+                  // 合并通用游戏状态和玩家特定状态
+                  value.gameStateChanged = {
+                    ...value.gameStateChanged,
+                    availableActions: playerSpecificState.availableActions,
+                    isYourTurn: playerSpecificState.isYourTurn,
+                    messages: [
+                      ...playerSpecificState.messages.broadcast,
+                      ...playerSpecificState.messages.private,
+                    ],
+                  };
                 }
               }
-            })();
-            return filteredAsyncIterator;
+
+              yield value;
+            }
           },
         };
       },
     },
     playerStateChanged: {
-      subscribe: () => pubsub.asyncIterableIterator(["PLAYER_STATE_CHANGED"]),
+      subscribe: (_, { gameId, playerId }) => {
+        // 使用游戏特定的玩家状态事件通道
+        return pubsub.asyncIterableIterator([`PLAYER_${gameId}_STATE_CHANGED`]);
+      },
     },
   },
   Game: {
