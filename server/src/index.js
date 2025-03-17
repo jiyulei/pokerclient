@@ -27,7 +27,15 @@ process.on("SIGTERM", async () => {
 const schema = makeExecutableSchema({ typeDefs, resolvers });
 
 const app = express();
-app.use(cors());
+
+// 添加CORS配置
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https://pokerclient.vercel.app/"],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
 const httpServer = http.createServer(app);
