@@ -74,7 +74,34 @@ const resolvers = {
     },
     joinGame: async (_, { gameId, name, userId }) => {
       const player = await GameManager.joinGame(gameId, { name, userId });
+
+      // 获取更新后的游戏状态
+      const updatedGame = await prisma.game.findUnique({
+        where: { id: gameId },
+        include: { players: true },
+      });
+
+      // 发布玩家状态变更事件
       pubsub.publish("PLAYER_STATE_CHANGED", { playerStateChanged: player });
+
+      // 同时发布游戏状态变更事件，这样所有订阅者都能收到新玩家加入的通知
+      pubsub.publish("GAME_STATE_CHANGED", {
+        gameStateChanged: {
+          ...updatedGame,
+          // 添加游戏实例中的状态信息
+          availableActions: [],
+          isYourTurn: false,
+          messages: [
+            {
+              id: `join_${Date.now()}`,
+              content: `${player.name} has joined the game`,
+              timestamp: Date.now(),
+              type: "broadcast",
+            },
+          ],
+        },
+      });
+
       return player;
     },
     startGame: async (_, { gameId }) => {
