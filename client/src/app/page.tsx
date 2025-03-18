@@ -46,10 +46,6 @@ interface Game {
   updatedAt?: string;
 }
 
-
-
-
-
 // 创建游戏的 GraphQL mutation
 const CREATE_GAME_MUTATION = gql`
   mutation CreateGame(
@@ -90,6 +86,13 @@ const GET_GAMES_QUERY = gql`
   }
 `;
 
+// 删除游戏的 GraphQL mutation
+const DELETE_GAME_MUTATION = gql`
+  mutation DeleteGame($gameId: ID!) {
+    deleteGame(gameId: $gameId)
+  }
+`;
+
 export default function HomePage() {
   const router = useRouter();
   const [gameSettings, setGameSettings] = useState({
@@ -107,6 +110,7 @@ export default function HomePage() {
     data: gamesData,
     loading: gamesLoading,
     error: gamesError,
+    refetch,
   } = useQuery(GET_GAMES_QUERY, {
     skip: !showGameList, // 只有当显示游戏列表时才执行查询
     fetchPolicy: "network-only", // 确保每次都从服务器获取最新数据
@@ -125,6 +129,23 @@ export default function HomePage() {
       setIsCreating(false);
     },
   });
+
+  // 删除游戏的 mutation
+  const [deleteGame, { loading: deleteLoading }] = useMutation(
+    DELETE_GAME_MUTATION,
+    {
+      onCompleted: () => {
+        console.log("Game deleted successfully");
+        // 刷新游戏列表
+        if (showGameList) {
+          refetch();
+        }
+      },
+      onError: (error) => {
+        console.error("Failed to delete game:", error);
+      },
+    }
+  );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -155,6 +176,14 @@ export default function HomePage() {
   const handleGetStartedClick = () => {
     setShowSettings(!showSettings);
     setShowGameList(false); // 关闭游戏列表
+  };
+
+  const handleDeleteGame = (gameId: string) => {
+    if (window.confirm("确定要删除这个游戏吗？此操作不可撤销。")) {
+      deleteGame({
+        variables: { gameId },
+      });
+    }
   };
 
   return (
@@ -304,12 +333,21 @@ export default function HomePage() {
                               {game.bigBlind}
                             </p>
                           </div>
-                          <Link
-                            href={`/game/${game.id}`}
-                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
-                          >
-                            Join
-                          </Link>
+                          <div className="flex space-x-2">
+                            <Link
+                              href={`/game/${game.id}`}
+                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Join
+                            </Link>
+                            <button
+                              onClick={() => handleDeleteGame(game.id)}
+                              className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                              disabled={deleteLoading}
+                            >
+                              删除
+                            </button>
+                          </div>
                         </div>
                       </li>
                     ))}
