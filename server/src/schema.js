@@ -85,6 +85,7 @@ const typeDefs = gql`
     ): Game!
     endGame(gameId: ID!): Game!
     leaveGame(gameId: ID!, playerId: ID!): Game!
+    deleteGame(gameId: ID!): Boolean!
   }
 
   type Subscription {

@@ -264,6 +264,37 @@ class GameManager {
     this.removeGame(gameId);
   }
 
+  // 完全删除游戏及其相关数据
+  async deleteGame(gameId) {
+    const game = this.games.get(gameId);
+
+    try {
+      // 不管游戏是否存在于内存中，我们都尝试从数据库中删除
+      await this.prisma.$transaction(async (tx) => {
+        // 首先删除与游戏关联的所有玩家记录
+        await tx.player.deleteMany({
+          where: { gameId },
+        });
+
+        // 然后删除游戏记录
+        await tx.game.delete({
+          where: { id: gameId },
+        });
+      });
+
+      // 如果游戏存在于内存中，从内存中删除
+      if (game) {
+        this.removeGame(gameId);
+      }
+
+      console.log(`游戏 ${gameId} 已完全从系统中删除`);
+      return true;
+    } catch (error) {
+      console.error(`删除游戏 ${gameId} 时出错:`, error);
+      throw new Error(`删除游戏失败: ${error.message}`);
+    }
+  }
+
   // 添加关闭连接的方法
   async disconnect() {
     await this.prisma.$disconnect();

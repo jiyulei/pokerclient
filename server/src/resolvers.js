@@ -195,6 +195,36 @@ const resolvers = {
 
       return updatedGame;
     },
+    deleteGame: async (_, { gameId }) => {
+      try {
+        // 调用GameManager的deleteGame方法
+        const result = await GameManager.deleteGame(gameId);
+
+        // 发布游戏已删除的通知
+        pubsub.publish(`GAME_${gameId}_STATE_CHANGED`, {
+          gameStateChanged: {
+            id: gameId,
+            status: "DELETED",
+            players: [],
+            availableActions: [],
+            isYourTurn: false,
+            messages: [
+              {
+                id: `delete_${Date.now()}`,
+                content: "Game has been deleted",
+                timestamp: Date.now(),
+                type: "broadcast",
+              },
+            ],
+          },
+        });
+
+        return result;
+      } catch (error) {
+        console.error(`删除游戏 ${gameId} 时出错:`, error);
+        throw new Error(`删除游戏失败: ${error.message}`);
+      }
+    },
   },
   Subscription: {
     bookAdded: {
