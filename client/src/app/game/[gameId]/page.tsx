@@ -464,20 +464,96 @@ export default function GamePage() {
           ))}
       </div>
 
-      {/* 可用操作按钮 */}
-      {game && game.availableActions && game.availableActions.length > 0 && (
-        <div className="w-full max-w-[900px] bg-gray-800 rounded-md p-3 mb-4">
-          <h3 className="text-sm font-semibold mb-2">Available Actions:</h3>
-          <div className="flex flex-wrap gap-2">
-            {game.availableActions.map((action: string) => (
-              <button
-                key={action}
-                className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-              >
-                {action.charAt(0).toUpperCase() + action.slice(1)}
-              </button>
-            ))}
-          </div>
+      {/* 游戏操作按钮 - 始终显示但根据当前回合状态启用/禁用 */}
+      {isCurrentPlayerInGame() && game && game.status !== "WAITING" && (
+        <div className="flex flex-wrap gap-2 mt-4 mb-4 justify-center">
+          <button
+            className={`px-4 py-2 rounded-md text-white ${
+              game.isYourTurn &&
+              (game.availableActions?.includes("fold") ||
+                !game.availableActions)
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-red-600/50 cursor-not-allowed"
+            }`}
+            disabled={
+              !game.isYourTurn ||
+              (game.availableActions && !game.availableActions.includes("fold"))
+            }
+            onClick={() => console.log("Fold")}
+          >
+            Fold
+          </button>
+
+          <button
+            className={`px-4 py-2 rounded-md text-white ${
+              game.isYourTurn &&
+              (game.availableActions?.includes("check") ||
+                !game.availableActions)
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-blue-600/50 cursor-not-allowed"
+            }`}
+            disabled={
+              !game.isYourTurn ||
+              (game.availableActions &&
+                !game.availableActions.includes("check"))
+            }
+            onClick={() => console.log("Check")}
+          >
+            Check
+          </button>
+
+          <button
+            className={`px-4 py-2 rounded-md text-white ${
+              game.isYourTurn &&
+              (game.availableActions?.includes("call") ||
+                !game.availableActions)
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-blue-600/50 cursor-not-allowed"
+            }`}
+            disabled={
+              !game.isYourTurn ||
+              (game.availableActions && !game.availableActions.includes("call"))
+            }
+            onClick={() => console.log("Call")}
+          >
+            Call
+          </button>
+
+          <button
+            className={`px-4 py-2 rounded-md text-white ${
+              game.isYourTurn &&
+              (game.availableActions?.includes("raise") ||
+                !game.availableActions)
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-green-600/50 cursor-not-allowed"
+            }`}
+            disabled={
+              !game.isYourTurn ||
+              (game.availableActions &&
+                !game.availableActions.includes("raise"))
+            }
+            onClick={() => console.log("Raise")}
+          >
+            Raise
+          </button>
+
+          <button
+            className={`px-4 py-2 rounded-md text-white ${
+              game.isYourTurn &&
+              (game.availableActions?.includes("allin") ||
+                !game.availableActions)
+                ? "bg-purple-600 hover:bg-purple-700"
+                : "bg-purple-600/50 cursor-not-allowed"
+            }`}
+            disabled={
+              !game.isYourTurn ||
+              (game.availableActions &&
+                !game.availableActions.includes("allin"))
+            }
+            onClick={() => console.log("All In")}
+          >
+            All In
+          </button>
         </div>
       )}
 
@@ -501,7 +577,7 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* 当玩家已加入游戏时，可以显示游戏相关操作按钮 */}
+      {/* 当玩家已加入游戏且游戏处于等待状态时，显示开始游戏按钮 */}
       {isCurrentPlayerInGame() && game && game.status === "WAITING" && (
         <div className="mt-6">
           <button
