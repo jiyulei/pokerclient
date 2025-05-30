@@ -1,5 +1,5 @@
 # Poker Client Full-Stack Texas Hold'em Project (WIP)
-
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/jiyulei/pokerclient)
 This project is a **full-stack Texas Hold'em poker platform** designed to showcase my full-stack development skills. It features a modern frontend-backend separation architecture, including a custom game engine, backend services, GraphQL real-time subscriptions, and a modern interactive frontend. **This is a Work in Progress (WIP)**—stay tuned for updates!
 
 ---
